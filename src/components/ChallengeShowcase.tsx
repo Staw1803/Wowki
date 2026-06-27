@@ -84,7 +84,6 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
   useEffect(() => {
     const fetchChallenges = async () => {
       if (!isSupabaseConfigured) {
-        // Fallback offline: Merge local storage entries with mocks
         const local = getLocalChallenges();
         setCommunityChallenges([...local, ...mockCommunityChallenges]);
         setLoading(false);
@@ -123,13 +122,13 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
   const getDifficultyBadge = (difficulty: string) => {
     switch (difficulty) {
       case 'Easy':
-        return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">EASY</span>;
+        return <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-zinc-100 text-zinc-950">EASY</span>;
       case 'Medium':
-        return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400">MEDIUM</span>;
+        return <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">MEDIUM</span>;
       case 'Hard':
-        return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400">HARD</span>;
+        return <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-black border border-white text-white">HARD</span>;
       default:
-        return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400">EASY</span>;
+        return <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-zinc-900 text-zinc-300">EASY</span>;
     }
   };
 
@@ -149,7 +148,7 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              <span className="w-2 h-5 bg-blue-600 rounded-sm"></span>
+              <span className="w-1 h-5 bg-white rounded-sm"></span>
               Aulas Oficiais (Academia IoT)
             </h3>
             <span className="text-xs text-slate-500">
@@ -168,14 +167,14 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-blue-500 tracking-wider">MÓDULO 0{lesson.id}</span>
+                      <span className="text-[10px] font-mono text-zinc-400 tracking-wider">MÓDULO 0{lesson.id}</span>
                       {solved ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">✓ SOLVED</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-white">✓ SOLVED</span>
                       ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-slate-500">PENDENTE</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-950 border border-zinc-900 text-zinc-500">PENDENTE</span>
                       )}
                     </div>
-                    <h4 className="text-base font-bold text-white group-hover:text-blue-500 transition-colors line-clamp-1">
+                    <h4 className="text-base font-bold text-white transition-colors line-clamp-1">
                       {lesson.titulo}
                     </h4>
                     <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">
@@ -184,8 +183,8 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-900/50">
-                    <span className="text-[10px] text-slate-500">Oficial</span>
-                    <span className="text-xs text-blue-500 font-semibold group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-500">Oficial</span>
+                    <span className="text-xs text-white font-bold group-hover:translate-x-1 transition-transform flex items-center gap-1">
                       Iniciar Lab
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
@@ -202,10 +201,10 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
         <div className="space-y-4 pt-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              <span className="w-2 h-5 bg-purple-600 rounded-sm"></span>
+              <span className="w-1 h-5 bg-white rounded-sm"></span>
               Laboratórios da Comunidade (CTF)
             </h3>
-            {loading && <span className="text-xs text-slate-500 animate-pulse">Sincronizando banco de dados...</span>}
+            {loading && <span className="text-xs text-zinc-500 animate-pulse">Sincronizando banco...</span>}
           </div>
 
           {loading ? (
@@ -230,9 +229,9 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
                           {getDifficultyBadge(challenge.difficulty)}
                         </div>
                         {solved ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">✓ CAPTURED</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-white">✓ CAPTURED</span>
                         ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-slate-500">COMPETIR</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-950 border border-zinc-900 text-zinc-500">COMPETIR</span>
                         )}
                       </div>
                       <h4 className="text-base font-bold text-white line-clamp-1">
@@ -244,8 +243,8 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-900/50">
-                      <span className="text-[10px] text-slate-500">ID: {challenge.wokwi_id.substring(0, 10)}</span>
-                      <span className="text-xs text-purple-500 font-semibold flex items-center gap-1">
+                      <span className="text-[10px] text-zinc-500">ID: {challenge.wokwi_id.substring(0, 10)}</span>
+                      <span className="text-xs text-white font-bold flex items-center gap-1">
                         Competir
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
