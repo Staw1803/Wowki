@@ -205,31 +205,31 @@ wss.on('connection', async (ws) => {
             ws.send('[✓] Download concluído. Inicializando contêiner...\r\n');
         }
 
-        // Create an interactive Ubuntu container (Fully isolated)
+        // Create an interactive Ubuntu container running foreground apt installer first, then swapping to bash
         const container = await docker.createContainer({
             Image: 'ubuntu:latest',
-            Cmd: ['/bin/bash'],
+            Cmd: [
+                '/bin/bash',
+                '-c',
+                'echo -e "\x1b[1;33m[!] Inicializando laboratório. Instalando ferramentas de pentesting (nmap, curl, mosquitto, telnet)...\x1b[0m\r" && ' +
+                'export DEBIAN_FRONTEND=noninteractive && ' +
+                'apt-get update && ' +
+                'apt-get install -y nmap curl mosquitto-clients telnet netcat-openbsd && ' +
+                'clear && ' +
+                'echo -e "\x1b[1;32m[✓] Ambiente pronto para invasão!\x1b[0m\r" && ' +
+                'echo -e "\x1b[1;34m[!] Dispositivo IoT isolado na nuvem.\x1b[0m\r" && ' +
+                'echo -e "\x1b[1;34m[!] Broker MQTT: broker.hivemq.com (porta 1883)\x1b[0m\r" && ' +
+                'echo -e "\x1b[1;34m[!] Escutar telemetria: mosquitto_sub -h broker.hivemq.com -t \\"wowki/aula04/#\\" -v\x1b[0m\r\n" && ' +
+                'exec /bin/bash'
+            ],
             Tty: true,
             OpenStdin: true,
             StdinOnce: false
         });
 
         await container.start();
-        ws.send('[!] Contêiner Ubuntu iniciado. Configurando ferramentas de rede (apt-get) no segundo plano...\r\n');
 
-        // Silently run apt-get updates and install nmap, curl, and mosquitto-clients in the background
-        const installExec = await docker.getContainer(container.id).exec({
-            Cmd: [
-                '/bin/bash', 
-                '-c', 
-                'export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y nmap curl mosquitto-clients telnet netcat-openbsd'
-            ],
-            AttachStdout: false,
-            AttachStderr: false
-        });
-        await installExec.start({ detach: true });
-
-        // Start shell hijack connection
+        // Start shell hijack connection immediately
         const exec = await container.exec({
             Cmd: ['/bin/bash'],
             AttachStdin: true,
@@ -240,10 +240,6 @@ wss.on('connection', async (ws) => {
         });
 
         const stream = await exec.start({ stdin: true, hijack: true, Tty: true });
-        ws.send('[✓] Terminal Ubuntu interativo estabelecido.\r\n');
-        ws.send('[!] O ambiente de execução está 100% isolado da sua máquina hospedeira.\r\n');
-        ws.send('[!] A conexão com o Wokwi deve ser realizada via MQTT na nuvem (broker.hivemq.com).\r\n');
-        ws.send('[!] Tente monitorar o dispositivo rodando: mosquitto_sub -h broker.hivemq.com -t "wowki/+"\r\n\r\n');
 
         // Pipe WebSocket input to Container Exec Stdin
         ws.on('message', (msg) => {
