@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export const PublishChallenge: React.FC = () => {
   const [title, setTitle] = useState('');
@@ -24,28 +24,53 @@ export const PublishChallenge: React.FC = () => {
     }
 
     try {
-      // Get the currently authenticated user (if any) to set the creator_id
-      const { data: { user } } = await supabase.auth.getUser();
-      const creatorId = user ? user.id : null;
+      if (!isSupabaseConfigured) {
+        // Fallback: Save challenge in localStorage
+        const newChallenge = {
+          id: `local-${Date.now()}`,
+          creator_id: null,
+          wokwi_id: wokwiId.trim(),
+          title: title.trim(),
+          description: description.trim(),
+          secret_flag: secretFlag.trim(),
+          difficulty,
+          created_at: new Date().toISOString(),
+        };
 
-      const { error } = await supabase
-        .from('challenges')
-        .insert([
-          {
-            title: title.trim(),
-            description: description.trim(),
-            wokwi_id: wokwiId.trim(),
-            secret_flag: secretFlag.trim(),
-            difficulty,
-            creator_id: creatorId,
-          },
-        ]);
+        const existingRaw = localStorage.getItem('wowki_local_challenges');
+        const list = existingRaw ? JSON.parse(existingRaw) : [];
+        list.unshift(newChallenge);
+        localStorage.setItem('wowki_local_challenges', JSON.stringify(list));
 
-      if (error) {
-        throw error;
+        setStatusMsg({
+          type: 'success',
+          text: 'Desafio publicado com sucesso localmente! (Supabase em modo simulação)',
+        });
+      } else {
+        // Real Supabase insert
+        const { data: { user } } = await supabase.auth.getUser();
+        const creatorId = user ? user.id : null;
+
+        const { error } = await supabase
+          .from('challenges')
+          .insert([
+            {
+              title: title.trim(),
+              description: description.trim(),
+              wokwi_id: wokwiId.trim(),
+              secret_flag: secretFlag.trim(),
+              difficulty,
+              creator_id: creatorId,
+            },
+          ]);
+
+        if (error) {
+          throw error;
+        }
+
+        setStatusMsg({ type: 'success', text: 'Desafio publicado com sucesso no Supabase!' });
       }
 
-      setStatusMsg({ type: 'success', text: 'Desafio publicado com sucesso no Supabase!' });
       // Reset form fields
       setTitle('');
       setDescription('');
@@ -78,6 +103,11 @@ export const PublishChallenge: React.FC = () => {
           <p className="text-sm text-slate-400 mt-1">
             Cadastre um novo laboratório IoT e defina a flag secreta para os alunos capturarem.
           </p>
+          {!isSupabaseConfigured && (
+            <p className="text-[10px] text-amber-400 mt-2 bg-amber-500/10 border border-amber-500/20 py-1 px-2 rounded">
+              ⚠️ Modo Simulação Ativo: As credenciais do Supabase no .env não foram configuradas. Os dados serão salvos localmente.
+            </p>
+          )}
         </div>
 
         {/* Status Alerts */}

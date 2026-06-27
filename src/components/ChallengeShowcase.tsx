@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import lessonsData from '../data/lessons.json';
 
 interface Lesson {
@@ -42,7 +42,7 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
   const [communityChallenges, setCommunityChallenges] = useState<CommunityChallenge[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fallback mock community challenges in case Supabase is not configured or offline
+  // Fallback mock community challenges
   const mockCommunityChallenges: CommunityChallenge[] = [
     {
       id: 'mock-1',
@@ -76,8 +76,21 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
     },
   ];
 
+  const getLocalChallenges = (): CommunityChallenge[] => {
+    const raw = localStorage.getItem('wowki_local_challenges');
+    return raw ? JSON.parse(raw) : [];
+  };
+
   useEffect(() => {
     const fetchChallenges = async () => {
+      if (!isSupabaseConfigured) {
+        // Fallback offline simulation: Merge local storage entries with standard mocks
+        const local = getLocalChallenges();
+        setCommunityChallenges([...local, ...mockCommunityChallenges]);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const { data, error } = await supabase
@@ -89,15 +102,16 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
           throw error;
         }
 
+        const local = getLocalChallenges();
         if (data && data.length > 0) {
-          setCommunityChallenges(data);
+          setCommunityChallenges([...local, ...data]);
         } else {
-          // If database is empty, load mock challenges
-          setCommunityChallenges(mockCommunityChallenges);
+          setCommunityChallenges([...local, ...mockCommunityChallenges]);
         }
       } catch (err) {
-        console.warn('Supabase fetch failed, loading mock community challenges:', err);
-        setCommunityChallenges(mockCommunityChallenges);
+        console.warn('Supabase fetch failed, loading local/mock fallback challenges:', err);
+        const local = getLocalChallenges();
+        setCommunityChallenges([...local, ...mockCommunityChallenges]);
       } finally {
         setLoading(false);
       }
@@ -129,6 +143,11 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
           <p className="text-slate-400 mt-2">
             Escolha uma das aulas do currículo oficial ou explore os laboratórios publicados por outros alunos.
           </p>
+          {!isSupabaseConfigured && (
+            <p className="text-[10px] text-amber-400 mt-3 bg-amber-500/5 border border-amber-500/20 py-1 px-3 rounded inline-block">
+              ⚠️ Conexão Supabase inativa. Rodando no modo de simulação (Local Storage).
+            </p>
+          )}
         </div>
 
         {/* Vitrine 1: Aulas Oficiais */}
@@ -203,7 +222,8 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {communityChallenges.map((challenge) => {
-                const solved = completedCommunityIds.includes(challenge.id);
+                const solved = completedCommunityIds.includes(challenge.id.toString());
+                const isLocal = challenge.id.toString().startsWith('local-');
                 return (
                   <div
                     key={challenge.id}
@@ -214,6 +234,11 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getDifficultyBadge(challenge.difficulty)}
+                          {isLocal && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                              LOCAL
+                            </span>
+                          )}
                         </div>
                         {solved ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">✓ CAPTURED</span>
