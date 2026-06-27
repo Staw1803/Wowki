@@ -66,7 +66,23 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
     term.loadAddon(fitAddon);
 
     term.open(terminalRef.current);
-    fitAddon.fit();
+    
+    // Fit immediately, when fonts are ready, and after a short delay
+    try {
+      fitAddon.fit();
+    } catch (e) {}
+
+    document.fonts.ready.then(() => {
+      try {
+        fitAddon.fit();
+      } catch (e) {}
+    });
+
+    const initialFitTimeout = setTimeout(() => {
+      try {
+        fitAddon.fit();
+      } catch (e) {}
+    }, 300);
 
     terminalInstance.current = term;
     fitAddonInstance.current = fitAddon;
@@ -139,6 +155,7 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
       ws.close();
       term.dispose();
       resizeObserver.disconnect();
+      clearTimeout(initialFitTimeout);
     };
   }, [lesson]);
 
