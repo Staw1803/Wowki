@@ -7,6 +7,37 @@ const wss = new WebSocket.Server({ port: 8080 });
 
 console.log('Servidor Orquestrador rodando na porta 8080...');
 
+// Helper to demultiplex Docker stdout/stderr if Tty multiplexing is active
+function decodeDockerStream(chunk) {
+    if (!Buffer.isBuffer(chunk)) {
+        return chunk.toString();
+    }
+    // Check for standard 8-byte header: [1 or 2, 0, 0, 0, ...]
+    if (chunk.length >= 8 && (chunk[0] === 1 || chunk[0] === 2) && chunk[1] === 0 && chunk[2] === 0 && chunk[3] === 0) {
+        let result = '';
+        let offset = 0;
+        while (offset + 8 <= chunk.length) {
+            const type = chunk[offset];
+            if (type !== 1 && type !== 2) {
+                // If it's not a stdout/stderr frame, fallback to printing the rest as-is
+                result += chunk.slice(offset).toString();
+                break;
+            }
+            const len = chunk.readUInt32BE(offset + 4);
+            const start = offset + 8;
+            const end = start + len;
+            if (end <= chunk.length) {
+                result += chunk.slice(start, end).toString();
+            } else {
+                result += chunk.slice(start).toString();
+            }
+            offset = end;
+        }
+        return result;
+    }
+    return chunk.toString();
+}
+
 wss.on('connection', async (ws) => {
     console.log('[+] Novo aluno conectado. Provisionando laboratório...');
     ws.send('\r\n[!] Iniciando ambiente isolado (Container Linux)...\r\n');
@@ -29,7 +60,6 @@ wss.on('connection', async (ws) => {
 
         ws.on('message', async (msg) => {
             const char = msg.toString();
-            console.log('[Mock Shell Input]:', JSON.stringify(char));
 
             if (char === '\r') {
                 const cmdLine = mockBuffer.trim();
@@ -139,7 +169,6 @@ wss.on('connection', async (ws) => {
 
     // Real Docker Mode
     try {
-        // We create a container running sleep to keep it alive
         const container = await docker.createContainer({
             Image: 'alpine',
             Cmd: ['sleep', 'infinity'],
@@ -150,7 +179,6 @@ wss.on('connection', async (ws) => {
         await container.start();
         console.log('[+] Contêiner principal iniciado.');
 
-        // We run the interactive shell process inside the container using exec
         const exec = await container.exec({
             Cmd: ['/bin/sh'],
             AttachStdin: true,
@@ -159,28 +187,23 @@ wss.on('connection', async (ws) => {
             Tty: true
         });
 
-        // Start exec stream
-        const stream = await exec.start({ stdin: true, hijack: true });
+        // Start exec stream, making sure to pass Tty: true in start options
+        const stream = await exec.start({ stdin: true, hijack: true, Tty: true });
         console.log('[+] Exec stream estabelecido.');
 
         ws.send('[!] Laboratório pronto. Terminal interativo estabelecido.\r\n\r\n/ # ');
 
         // Pipe WebSocket input to Container Exec Stdin
         ws.on('message', (msg) => {
-            const dataStr = msg.toString();
-            console.log('[WS -> Docker exec]:', JSON.stringify(dataStr));
             if (stream && stream.writable) {
                 stream.write(msg);
-            } else {
-                console.log('[!] Exec stream is not writable!');
             }
         });
 
-        // Pipe Container Exec Stdout/Stderr back to WebSocket
+        // Pipe Container Exec Stdout/Stderr back to WebSocket, passing through our demuxer
         stream.on('data', (chunk) => {
-            const dataStr = chunk.toString();
-            console.log('[Docker exec -> WS]:', JSON.stringify(dataStr));
-            ws.send(dataStr);
+            const cleanText = decodeDockerStream(chunk);
+            ws.send(cleanText);
         });
 
         ws.on('close', async () => {
