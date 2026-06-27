@@ -183,7 +183,29 @@ wss.on('connection', async (ws) => {
     }
 
     try {
-        // Create an interactive Ubuntu container (Fully isolated, no Host mappings)
+        // Check if the ubuntu:latest image is cached locally, if not, pull it
+        const images = await docker.listImages();
+        const hasUbuntu = images.some(img => img.RepoTags && img.RepoTags.includes('ubuntu:latest'));
+
+        if (!hasUbuntu) {
+            ws.send('[!] Imagem Ubuntu não localizada no disco local.\r\n');
+            ws.send('[!] Baixando imagem base ubuntu:latest do Docker Hub... (Isso pode levar alguns segundos na primeira vez)\r\n');
+            console.log('[*] Baixando imagem ubuntu:latest...');
+            
+            await new Promise((resolve, reject) => {
+                docker.pull('ubuntu:latest', {}, (err, stream) => {
+                    if (err) return reject(err);
+                    docker.modem.followProgress(stream, (err, output) => {
+                        if (err) return reject(err);
+                        resolve(output);
+                    });
+                });
+            });
+            console.log('[*] Imagem ubuntu:latest baixada e registrada.');
+            ws.send('[✓] Download concluído. Inicializando contêiner...\r\n');
+        }
+
+        // Create an interactive Ubuntu container (Fully isolated)
         const container = await docker.createContainer({
             Image: 'ubuntu:latest',
             Cmd: ['/bin/bash'],
