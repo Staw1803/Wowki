@@ -12,19 +12,28 @@ export const WokwiSimulator: React.FC<WokwiSimulatorProps> = ({ wokwiUrl }) => {
           <span>LABORATÓRIO DE CIRCUITO (WOKWI)</span>
         </div>
         <div className="status-item" style={{ fontSize: '0.75rem' }}>
-          <span className="status-dot active" style={{ backgroundColor: 'var(--accent-color)' }}></span>
+          <span className="status-dot active" style={{ backgroundColor: 'var(--accent-color)', boxShadow: '0 0 6px var(--accent-color)' }}></span>
           <span>PLACA CONECTADA</span>
         </div>
       </div>
-      <div className="panel-content" style={{ backgroundColor: '#151b23' }}>
+      <div className="panel-content" style={{ backgroundColor: 'var(--bg-pure)', overflow: 'hidden' }}>
         {wokwiUrl ? (
-          <iframe
-            src={wokwiUrl}
-            className="wokwi-iframe"
-            title="Wokwi Simulator"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
+          <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+            <iframe
+              src={wokwiUrl}
+              style={{
+                position: 'absolute',
+                top: '-49px', // Offset the top header bar (Simulation, Code tabs)
+                left: 0,
+                width: '100%',
+                height: 'calc(100% + 49px)', // Compensation for offset
+                border: 'none',
+              }}
+              title="Wokwi Simulator"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
         ) : (
           <div
             style={{
