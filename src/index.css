@@ -5,20 +5,22 @@
 @tailwind utilities;
 
 :root {
-  --bg-color: #09090b; /* Zinc 950 */
-  --panel-bg: #18181b; /* Zinc 900 */
-  --panel-header-bg: #202024; /* Zinc 850 */
-  --border-color: #27272a; /* Zinc 800 */
+  --bg-pure: #000000; /* Absolute Black */
+  --bg-dark: #050507; /* Extremely Dark Slate */
+  --bg-panel: #0a0a0d; /* Zinc Black */
+  --bg-panel-header: #0f0f12; /* Muted Black */
+  --border-dark: #141418; /* Dark Charcoal Border */
+  --border-light: #222228; /* Subtle Highlight Border */
   --accent-color: #2563eb; /* Royal Blue */
   --accent-hover: #1d4ed8;
   --accent-glow: rgba(37, 99, 235, 0.15);
   --success-color: #10b981; /* Emerald 500 */
   --warning-color: #f59e0b; /* Amber 500 */
-  --warning-bg: rgba(245, 158, 11, 0.08);
-  --text-primary: #f4f4f5; /* Zinc 100 */
-  --text-secondary: #a1a1aa; /* Zinc 400 */
-  --text-muted: #52525b; /* Zinc 600 */
-  --terminal-bg: #0c0c0e;
+  --warning-bg: rgba(245, 158, 11, 0.04);
+  --text-primary: #ffffff; /* Pure White */
+  --text-secondary: #94a3b8; /* Muted Slate */
+  --text-muted: #475569; /* Dark Slate Gray */
+  --terminal-bg: #000000; /* True Black Terminal */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'Fira Code', monospace;
 }
@@ -30,27 +32,27 @@
 }
 
 body {
-  background-color: var(--bg-color);
+  background-color: var(--bg-pure);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
+  overflow-x: hidden;
+  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
 
 #root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   width: 100vw;
+  background-color: var(--bg-pure);
 }
 
 /* App Header */
 .app-header {
   height: 56px;
-  background: var(--panel-bg);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border-dark);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,17 +67,17 @@ body {
 }
 
 .app-title {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
 .cyber-badge {
-  background: rgba(37, 99, 235, 0.1);
-  border: 1px solid var(--accent-color);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid var(--border-dark);
   color: var(--text-primary);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 4px;
@@ -109,14 +111,14 @@ body {
   box-shadow: 0 0 6px var(--success-color);
 }
 
-/* 3-Column Layout */
+/* Dashboard Split Screen Layout */
 .dashboard-layout {
   flex: 1;
   display: grid;
   grid-template-columns: 380px 1.2fr 1fr;
   overflow: hidden;
   height: calc(100vh - 56px);
-  background-color: var(--bg-color);
+  background-color: var(--bg-pure);
 }
 
 /* Standard Panels */
@@ -125,8 +127,8 @@ body {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background: var(--panel-bg);
-  border-right: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-dark);
 }
 
 .panel:last-child {
@@ -135,8 +137,8 @@ body {
 
 .panel-header {
   height: 44px;
-  background: var(--panel-header-bg);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border-dark);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -174,7 +176,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-dark);
   padding-bottom: 16px;
 }
 
@@ -188,8 +190,8 @@ body {
 
 .lesson-select {
   width: 100%;
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  background: var(--bg-pure);
+  border: 1px solid var(--border-dark);
   border-radius: 6px;
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -237,7 +239,7 @@ body {
   color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-dark);
   padding-bottom: 4px;
 }
 
@@ -258,8 +260,8 @@ body {
 }
 
 .step-item {
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  background: var(--bg-pure);
+  border: 1px solid var(--border-dark);
   border-radius: 6px;
   padding: 10px 12px;
 }
@@ -277,7 +279,7 @@ body {
 
 .lesson-status-badge.unsolved {
   background: rgba(82, 82, 91, 0.15);
-  border: 1px solid var(--text-muted);
+  border: 1px solid var(--border-dark);
   color: var(--text-secondary);
 }
 
@@ -327,7 +329,7 @@ body {
   width: 100%;
   height: 100%;
   border: none;
-  background: #111;
+  background: #000;
 }
 
 .wokwi-iframe {
@@ -378,4 +380,20 @@ body {
 .header-nav-btn:disabled {
   background: var(--text-muted);
   cursor: not-allowed;
+}
+
+/* Pure Black Page Elements */
+.bg-gradient-black {
+  background: radial-gradient(circle at center, #08080a 0%, #000000 100%);
+}
+
+.card-black {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-dark);
+  transition: all 0.2s ease;
+}
+
+.card-black:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
 }

@@ -114,20 +114,37 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
       const charCode = data.charCodeAt(0);
 
       if (data === '\r') {
-        const cmd = lineBuffer.current.trim().toLowerCase();
+        const cmd = lineBuffer.current.trim();
+        const cmdLower = cmd.toLowerCase();
         lineBuffer.current = '';
 
-        // Check if the typed command is one of the expected commands for this lesson
-        const expected = lesson.comandos_esperados;
-        if (expected.includes(cmd)) {
-          // Trigger success callback
-          onCommandSuccess();
-        } else if (
-          cmd !== '' &&
-          !['ls', 'cd', 'pwd', 'cat', 'echo', 'clear', 'whoami', 'help'].includes(cmd)
-        ) {
-          // If they typed something incorrect (that is not a standard shell command)
-          onCommandFailed();
+        // Check if it is a community challenge or official lesson
+        const isCommunity = !('comandos_esperados' in lesson);
+
+        if (isCommunity) {
+          // Community challenge validation: checks if user typed the secret flag
+          const secretFlag = (lesson as any).secret_flag;
+          if (secretFlag && cmd.toLowerCase().includes(secretFlag.toLowerCase())) {
+            term.writeln('\r\n\x1b[1;32m[✓] FLAG CAPTURADA COM SUCESSO!\x1b[0m');
+            term.writeln(`\x1b[1;32mParabéns! Você resolveu o desafio: ${(lesson as any).title}\x1b[0m`);
+            onCommandSuccess();
+          } else if (
+            cmd !== '' &&
+            !['ls', 'cd', 'pwd', 'cat', 'echo', 'clear', 'whoami', 'help'].includes(cmdLower)
+          ) {
+            onCommandFailed();
+          }
+        } else {
+          // Official lesson validation
+          const expected = lesson.comandos_esperados || [];
+          if (expected.includes(cmdLower)) {
+            onCommandSuccess();
+          } else if (
+            cmd !== '' &&
+            !['ls', 'cd', 'pwd', 'cat', 'echo', 'clear', 'whoami', 'help'].includes(cmdLower)
+          ) {
+            onCommandFailed();
+          }
         }
       } else if (charCode === 127 || data === '\b') {
         if (lineBuffer.current.length > 0) {
