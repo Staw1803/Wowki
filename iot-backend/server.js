@@ -1,7 +1,5 @@
 const WebSocket = require('ws');
 const Docker = require('dockerode');
-const net = require('net');
-const http = require('http');
 
 // Connect to local Docker API
 const docker = new Docker();
@@ -40,117 +38,12 @@ function decodeDockerStream(chunk) {
 }
 
 // ----------------------------------------------------
-// 1. SIMULATED DEVICE SERVICES (TELNET & HTTP)
-// ----------------------------------------------------
-
-// TCP Port 8023 - Telnet Backdoor (ESP32 admin shell)
-const telnetServer = net.createServer((socket) => {
-    console.log('[+] Nova conexão Telnet de:', socket.remoteAddress);
-    socket.write('\r\nWelcome to ESP32-Telnetd admin console.\r\nPassword: ');
-
-    let inputBuffer = '';
-    let authenticated = false;
-
-    socket.on('data', (data) => {
-        const str = data.toString();
-        for (let i = 0; i < str.length; i++) {
-            const char = str[i];
-            if (char === '\n' || char === '\r') {
-                const cmd = inputBuffer.trim();
-                inputBuffer = '';
-                if (!authenticated) {
-                    if (cmd === 'admin123' || cmd === 'admin' || cmd === '12345') {
-                        authenticated = true;
-                        socket.write('\r\nAccess Granted.\r\nESP32-Shell> ');
-                    } else {
-                        socket.write('\r\nAccess Denied. Try again.\r\nPassword: ');
-                    }
-                } else {
-                    if (cmd === 'help') {
-                        socket.write('\r\nComandos disponíveis:\r\n  get_flag - Exibe a flag criptográfica do dispositivo\r\n  reboot   - Reinicia o microcontrolador\r\n  status   - Exibe informações do firmware\r\n  exit     - Encerra sessão\r\nESP32-Shell> ');
-                    } else if (cmd === 'get_flag') {
-                        socket.write('\r\n[✓] FLAG: flag{telnet_backdoor_accessed}\r\nESP32-Shell> ');
-                    } else if (cmd === 'status') {
-                        socket.write('\r\nUptime: 24h 12m\r\nBattery: 99% (Charging)\r\nSSID: Lab-Hacking-Wokwi\r\nModbus-State: Listening on port 502\r\nESP32-Shell> ');
-                    } else if (cmd === 'reboot') {
-                        socket.write('\r\nRebooting ESP32...\r\n');
-                        socket.end();
-                    } else if (cmd === 'exit') {
-                        socket.write('\r\nEncerrando sessão.\r\n');
-                        socket.end();
-                    } else {
-                        socket.write(`\r\nsh: ${cmd}: command not found\r\nESP32-Shell> `);
-                    }
-                }
-            } else if (char.charCodeAt(0) === 127 || char.charCodeAt(0) === 8) { // Backspace
-                if (inputBuffer.length > 0) {
-                    inputBuffer = inputBuffer.slice(0, -1);
-                    socket.write('\b \b');
-                }
-            } else {
-                inputBuffer += char;
-                if (authenticated) {
-                    socket.write(char);
-                } else {
-                    socket.write('*');
-                }
-            }
-        }
-    });
-});
-
-telnetServer.listen(8023, '0.0.0.0', () => {
-    console.log('[+] Simulador Telnet ativo na porta TCP 8023');
-});
-
-// TCP Port 8000 - HTTP REST API (ESP32 Web Server)
-const httpServer = http.createServer((req, res) => {
-    console.log(`[+] Nova requisição HTTP: ${req.method} ${req.url}`);
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-
-    if (req.url === '/' || req.url === '/api/status') {
-        res.writeHead(200);
-        res.end(JSON.stringify({
-            device: 'ESP32-Smart-Gateway',
-            status: 'active',
-            uptime_seconds: 87120,
-            fw_version: 'v1.0.4-dev-vuln',
-            api_endpoints: ['/api/status', '/api/readings']
-        }, null, 2));
-    } else if (req.url === '/api/readings') {
-        res.writeHead(200);
-        res.end(JSON.stringify({
-            temperature: 24.8,
-            humidity: 59.2,
-            voltage: 3.32
-        }, null, 2));
-    } else if (req.url === '/debug/credentials') {
-        res.writeHead(200);
-        res.end(JSON.stringify({
-            admin_user: 'admin',
-            admin_pass: 'admin123',
-            secret_flag: 'flag{web_endpoint_disclosure}',
-            warning: 'Rota de depuração ativa! Desative antes de compilar para produção!'
-        }, null, 2));
-    } else {
-        res.writeHead(404);
-        res.end(JSON.stringify({ error: 'Not Found' }));
-    }
-});
-
-httpServer.listen(8000, '0.0.0.0', () => {
-    console.log('[+] Simulador HTTP API ativo na porta TCP 8000');
-});
-
-
-// ----------------------------------------------------
-// 2. ORCHESTRATOR & DOCKER CONSOLE CONNECTION
+// ORCHESTRATOR & DOCKER CONSOLE CONNECTION (UBUNTU)
 // ----------------------------------------------------
 
 wss.on('connection', async (ws) => {
     console.log('[+] Novo aluno conectado. Provisionando laboratório...');
-    ws.send('\r\n[!] Iniciando ambiente isolado (Container Linux)...\r\n');
+    ws.send('\r\n[!] Iniciando ambiente isolado (Container Ubuntu Linux)...\r\n');
 
     let dockerReady = false;
     try {
@@ -162,59 +55,13 @@ wss.on('connection', async (ws) => {
     }
 
     if (!dockerReady) {
-        // Fallback Mock Shell with networking mock commands
-        ws.send('\r\nWelcome to IoT-OS Shell! Type "help" to see tools.\r\n[!] O dispositivo IoT está acessível na rede em: host.docker.internal\r\n/ # ');
+        // Fallback Mock Shell simulating Ubuntu and APT package manager
+        ws.send('\r\nWelcome to IoT-OS (Ubuntu 22.04.3 LTS) Mock Shell! Type "help" to see tools.\r\n[!] O ambiente está isolado. O ataque de injeção IoT deve ser direcionado ao broker MQTT público em: broker.hivemq.com\r\nroot@iot-academy:~# ');
         let mockBuffer = '';
-        let insideTelnet = false;
-        let telnetAuth = false;
-        let telnetBuffer = '';
+        let installedPackages = new Set(['curl', 'strings']);
 
         ws.on('message', async (msg) => {
             const char = msg.toString();
-
-            // Direct input piping if interacting with the mock telnet shell
-            if (insideTelnet) {
-                if (char === '\r') {
-                    const cmd = telnetBuffer.trim();
-                    telnetBuffer = '';
-                    ws.send('\r\n');
-                    if (!telnetAuth) {
-                        if (cmd === 'admin123' || cmd === 'admin' || cmd === '12345') {
-                            telnetAuth = true;
-                            ws.send('Access Granted.\r\nESP32-Shell> ');
-                        } else {
-                            ws.send('Access Denied. Try again.\r\nPassword: ');
-                        }
-                    } else {
-                        if (cmd === 'help') {
-                            ws.send('Comandos disponíveis:\r\n  get_flag - Exibe a flag criptográfica do dispositivo\r\n  reboot   - Reinicia o microcontrolador\r\n  status   - Exibe informações do firmware\r\n  exit     - Encerra sessão\r\nESP32-Shell> ');
-                        } else if (cmd === 'get_flag') {
-                            ws.send('[✓] FLAG: flag{telnet_backdoor_accessed}\r\nESP32-Shell> ');
-                        } else if (cmd === 'status') {
-                            ws.send('Uptime: 24h 12m\r\nBattery: 99% (Charging)\r\nSSID: Lab-Hacking-Wokwi\r\nESP32-Shell> ');
-                        } else if (cmd === 'reboot' || cmd === 'exit') {
-                            insideTelnet = false;
-                            telnetAuth = false;
-                            ws.send('Conexão encerrada.\r\n/ # ');
-                        } else {
-                            ws.send(`sh: ${cmd}: command not found\r\nESP32-Shell> `);
-                        }
-                    }
-                } else if (char.charCodeAt(0) === 127 || char.charCodeAt(0) === 8) {
-                    if (telnetBuffer.length > 0) {
-                        telnetBuffer = telnetBuffer.slice(0, -1);
-                        ws.send('\b \b');
-                    }
-                } else {
-                    telnetBuffer += char;
-                    if (telnetAuth) {
-                        ws.send(char);
-                    } else {
-                        ws.send('*');
-                    }
-                }
-                return;
-            }
 
             if (char === '\r') {
                 const cmdLine = mockBuffer.trim();
@@ -224,64 +71,104 @@ wss.on('connection', async (ws) => {
                 ws.send('\r\n');
 
                 if (cmd === 'help') {
-                    ws.send('Ferramentas: nmap, curl, telnet, ls, whoami, clear, help\r\n');
+                    ws.send('Ferramentas instaladas: ls, whoami, clear, help, apt-get, apt\r\nFerramentas de Pentest (instale via apt-get): nmap, mosquitto-clients, telnet\r\n');
                 } else if (cmd === 'whoami') {
                     ws.send('root\r\n');
                 } else if (cmd === 'clear') {
                     ws.send('\x1bc');
                 } else if (cmd === 'ls') {
-                    ws.send('bin/   etc/   lib/   root/   sys/   usr/   var/\r\n');
+                    ws.send('bin/   boot/  dev/   etc/   home/  lib/   mnt/   opt/   root/  run/   sbin/  srv/   sys/   tmp/   usr/   var/\r\n');
+                } else if (cmd === 'apt-get' || cmd === 'apt') {
+                    const action = args[1];
+                    const pkg = args[2];
+
+                    if (action === 'install') {
+                        if (!pkg) {
+                            ws.send('E: Especifique o pacote para instalar (ex: apt-get install nmap)\r\n');
+                        } else {
+                            const cleanPkg = pkg.toLowerCase();
+                            ws.send(`Reading package lists... Done\r\n`);
+                            ws.send(`Building dependency tree... Done\r\n`);
+                            ws.send(`Reading state information... Done\r\n`);
+                            ws.send(`The following NEW packages will be installed:\r\n  ${cleanPkg}\r\n`);
+                            ws.send(`0 upgraded, 1 newly installed, 0 to remove and 42 not upgraded.\r\n`);
+                            ws.send(`Need to get 143 kB of archives.\r\n`);
+                            ws.send(`After this operation, 512 kB of additional disk space will be used.\r\n`);
+                            ws.send(`Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 ${cleanPkg} [143 kB]\r\n`);
+                            ws.send(`Selecting previously unselected package ${cleanPkg}.\r\n`);
+                            ws.send(`(Reading database ... 14842 files and directories currently installed.)\r\n`);
+                            ws.send(`Preparing to unpack .../${cleanPkg}_amd64.deb ...\r\n`);
+                            ws.send(`Unpacking ${cleanPkg} ...\r\n`);
+                            ws.send(`Setting up ${cleanPkg} ...\r\n`);
+                            installedPackages.add(cleanPkg);
+                        }
+                    } else if (action === 'update') {
+                        ws.send('Get:1 http://archive.ubuntu.com/ubuntu jammy InRelease [270 kB]\r\n');
+                        ws.send('Get:2 http://security.ubuntu.com/ubuntu jammy-security InRelease [110 kB]\r\n');
+                        ws.send('Fetched 380 kB in 1s (245 kB/s)\r\n');
+                        ws.send('Reading package lists... Done\r\n');
+                    } else {
+                        ws.send('APT Package Manager. Uso: apt-get install <pacote> ou apt-get update\r\n');
+                    }
                 } else if (cmd === 'nmap') {
-                    const target = args[1];
-                    if (!target) {
-                        ws.send('nmap: Especifique o IP ou hostname do alvo (ex: nmap host.docker.internal)\r\n');
-                    } else if (target.includes('host.docker.internal') || target.includes('localhost') || target.includes('127.0.0.1')) {
-                        ws.send('Starting Nmap 7.92 ( https://nmap.org ) at ' + new Date().toISOString() + '\r\n');
-                        ws.send('Nmap scan report for host.docker.internal (192.168.1.1)\r\n');
-                        ws.send('Host is up (0.0021s latency).\r\n');
-                        ws.send('Not shown: 998 closed tcp ports (reset)\r\n');
-                        ws.send('PORT     STATE SERVICE\r\n');
-                        ws.send('8000/tcp open  http-alt\r\n');
-                        ws.send('8023/tcp open  telnet\r\n');
-                        ws.send('\r\nNmap done: 1 IP address (1 host up) scanned in 0.45 seconds\r\n');
+                    if (installedPackages.has('nmap')) {
+                        const target = args[1];
+                        if (!target) {
+                            ws.send('nmap: Especifique o alvo (ex: nmap broker.hivemq.com)\r\n');
+                        } else {
+                            ws.send('Starting Nmap 7.80 ( https://nmap.org ) at ' + new Date().toISOString() + '\r\n');
+                            ws.send(`Nmap scan report for ${target}\r\n`);
+                            ws.send('Host is up (0.0042s latency).\r\n');
+                            ws.send('PORT     STATE SERVICE\r\n');
+                            ws.send('1883/tcp open  mqtt\r\n');
+                            ws.send('8883/tcp open  secure-mqtt\r\n');
+                            ws.send('\r\nNmap done: 1 IP address scanned.\r\n');
+                        }
                     } else {
-                        ws.send(`nmap: Host '${target}' parece fora de linha.\r\n`);
+                        ws.send('bash: nmap: command not found (Instale usando: apt-get install nmap)\r\n');
                     }
-                } else if (cmd === 'curl') {
-                    const url = args[1];
-                    if (!url) {
-                        ws.send('curl: Uso: curl http://<ip>:<porta>/rota\r\n');
-                    } else if (url.includes('host.docker.internal:8000/debug/credentials') || url.includes('localhost:8000/debug/credentials')) {
-                        ws.send('{\r\n');
-                        ws.send('  "admin_user": "admin",\r\n');
-                        ws.send('  "admin_pass": "admin123",\r\n');
-                        ws.send('  "secret_flag": "flag{web_endpoint_disclosure}",\r\n');
-                        ws.send('  "warning": "Rota de depuração ativa! Desative antes de compilar para produção!"\r\n');
-                        ws.send('}\r\n');
-                    } else if (url.includes('host.docker.internal:8000/api/status') || url.includes('localhost:8000/api/status')) {
-                        ws.send('{\r\n  "device": "ESP32-Smart-Gateway",\r\n  "status": "active",\r\n  "uptime_seconds": 87120,\r\n  "fw_version": "v1.0.4-dev-vuln"\r\n}\r\n');
-                    } else if (url.includes('host.docker.internal:8000') || url.includes('localhost:8000')) {
-                        ws.send('{\r\n  "device": "ESP32-Smart-Gateway",\r\n  "status": "active"\r\n}\r\n');
+                } else if (cmd === 'mosquitto_sub' || cmd === 'mosquitto-clients') {
+                    if (installedPackages.has('mosquitto-clients')) {
+                        const hostIdx = args.indexOf('-h');
+                        const topicIdx = args.indexOf('-t');
+                        const host = hostIdx !== -1 ? args[hostIdx + 1] : '';
+                        const topic = topicIdx !== -1 ? args[topicIdx + 1] : '';
+
+                        if (!host || !topic) {
+                            ws.send('Uso: mosquitto_sub -h <broker> -t <topico>\r\n');
+                        } else {
+                            ws.send(`[+] Conectado ao broker ${host} - Escutando tópico: ${topic}\r\n`);
+                            ws.send(`${topic}: {"dispositivo": "ESP32-Termostato", "temperatura": 24.5, "status": "seguro"}\r\n`);
+                            ws.send(`${topic}: {"dispositivo": "ESP32-Termostato", "temperatura": 24.6, "status": "seguro"}\r\n`);
+                        }
                     } else {
-                        ws.send('curl: (7) Failed to connect to host.\r\n');
+                        ws.send('bash: mosquitto_sub: command not found (Instale usando: apt-get install mosquitto-clients)\r\n');
                     }
-                } else if (cmd === 'telnet') {
-                    const host = args[1];
-                    const port = args[2];
-                    if (!host || !port) {
-                        ws.send('telnet: Especifique o host e a porta (ex: telnet host.docker.internal 8023)\r\n');
-                    } else if ((host.includes('host.docker.internal') || host.includes('localhost')) && port === '8023') {
-                        insideTelnet = true;
-                        ws.send('Connecting to host.docker.internal...\r\n');
-                        ws.send('Escape character is \'^]\'.\r\n');
-                        ws.send('\r\nWelcome to ESP32-Telnetd admin console.\r\nPassword: ');
+                } else if (cmd === 'mosquitto_pub') {
+                    if (installedPackages.has('mosquitto-clients')) {
+                        const hostIdx = args.indexOf('-h');
+                        const topicIdx = args.indexOf('-t');
+                        const msgIdx = args.indexOf('-m');
+                        const host = hostIdx !== -1 ? args[hostIdx + 1] : '';
+                        const topic = topicIdx !== -1 ? args[topicIdx + 1] : '';
+                        const payload = msgIdx !== -1 ? args[msgIdx + 1] : '';
+
+                        if (!host || !topic || !payload) {
+                            ws.send('Uso: mosquitto_pub -h <broker> -t <topico> -m "<mensagem>"\r\n');
+                        } else {
+                            ws.send(`[✓] Mensagem publicada no broker ${host} -> Tópico: ${topic}\r\n`);
+                            if (payload.includes('flag') || payload.toLowerCase().includes('unlock') || payload.toLowerCase().includes('bypass')) {
+                                ws.send(`\r\n\x1b[1;32m[✓] RESPOSTA DO FIRMWARE RECEBIDA:\x1b[0m\r\n`);
+                                ws.send(`\x1b[1;32mflag{mqtt_payload_injection_success}\x1b[0m\r\n`);
+                            }
+                        }
                     } else {
-                        ws.send(`telnet: Unable to connect to remote host: Connection refused\r\n`);
+                        ws.send('bash: mosquitto_pub: command not found (Instale usando: apt-get install mosquitto-clients)\r\n');
                     }
                 } else if (cmdLine !== '') {
-                    ws.send(`sh: ${cmdLine}: command not found\r\n`);
+                    ws.send(`bash: ${cmdLine}: command not found\r\n`);
                 }
-                ws.send('/ # ');
+                ws.send('root@iot-academy:~# ');
             } else if (char.charCodeAt(0) === 127 || char.charCodeAt(0) === 8) {
                 if (mockBuffer.length > 0) {
                     mockBuffer = mockBuffer.slice(0, -1);
@@ -296,24 +183,25 @@ wss.on('connection', async (ws) => {
     }
 
     try {
-        // Create an interactive Alpine container injected with the host network resolution
+        // Create an interactive Ubuntu container (Fully isolated, no Host mappings)
         const container = await docker.createContainer({
-            Image: 'alpine',
-            Cmd: ['/bin/sh'],
+            Image: 'ubuntu:latest',
+            Cmd: ['/bin/bash'],
             Tty: true,
             OpenStdin: true,
-            StdinOnce: false,
-            HostConfig: {
-                ExtraHosts: ["host.docker.internal:host-gateway"]
-            }
+            StdinOnce: false
         });
 
         await container.start();
-        ws.send('[!] Container carregado. Instalando ferramentas de pentesting no background...\r\n');
+        ws.send('[!] Contêiner Ubuntu iniciado. Configurando ferramentas de rede (apt-get) no segundo plano...\r\n');
 
-        // Silently run apk updates in the background to install nmap, curl, and telnet
+        // Silently run apt-get updates and install nmap, curl, and mosquitto-clients in the background
         const installExec = await docker.getContainer(container.id).exec({
-            Cmd: ['/bin/sh', '-c', 'apk update && apk add nmap curl busybox-extras netcat-openbsd'],
+            Cmd: [
+                '/bin/bash', 
+                '-c', 
+                'export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y nmap curl mosquitto-clients telnet netcat-openbsd'
+            ],
             AttachStdout: false,
             AttachStderr: false
         });
@@ -321,7 +209,7 @@ wss.on('connection', async (ws) => {
 
         // Start shell hijack connection
         const exec = await container.exec({
-            Cmd: ['/bin/sh'],
+            Cmd: ['/bin/bash'],
             AttachStdin: true,
             AttachStdout: true,
             AttachStderr: true,
@@ -330,9 +218,10 @@ wss.on('connection', async (ws) => {
         });
 
         const stream = await exec.start({ stdin: true, hijack: true, Tty: true });
-        ws.send('[✓] Terminal interativo estabelecido.\r\n');
-        ws.send('[!] O dispositivo IoT está acessível na rede em: host.docker.internal\r\n');
-        ws.send('[!] Experimente rodar: nmap host.docker.internal\r\n\r\n');
+        ws.send('[✓] Terminal Ubuntu interativo estabelecido.\r\n');
+        ws.send('[!] O ambiente de execução está 100% isolado da sua máquina hospedeira.\r\n');
+        ws.send('[!] A conexão com o Wokwi deve ser realizada via MQTT na nuvem (broker.hivemq.com).\r\n');
+        ws.send('[!] Tente monitorar o dispositivo rodando: mosquitto_sub -h broker.hivemq.com -t "wowki/+"\r\n\r\n');
 
         // Pipe WebSocket input to Container Exec Stdin
         ws.on('message', (msg) => {
