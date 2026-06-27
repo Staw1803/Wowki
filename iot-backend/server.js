@@ -29,6 +29,7 @@ wss.on('connection', async (ws) => {
 
         ws.on('message', async (msg) => {
             const char = msg.toString();
+            console.log('[Mock Shell Input]:', JSON.stringify(char));
 
             if (char === '\r') {
                 const cmdLine = mockBuffer.trim();
@@ -138,34 +139,49 @@ wss.on('connection', async (ws) => {
 
     // Real Docker Mode
     try {
+        // We create a container running sleep to keep it alive
         const container = await docker.createContainer({
             Image: 'alpine',
+            Cmd: ['sleep', 'infinity'],
+            Tty: false,
+            OpenStdin: false
+        });
+
+        await container.start();
+        console.log('[+] Contêiner principal iniciado.');
+
+        // We run the interactive shell process inside the container using exec
+        const exec = await container.exec({
             Cmd: ['/bin/sh'],
             AttachStdin: true,
             AttachStdout: true,
             AttachStderr: true,
-            Tty: true,
-            OpenStdin: true,
-            StdinOnce: false
+            Tty: true
         });
 
-        // Conecta a entrada e saída do container ANTES de iniciar
-        const stream = await container.attach({
-            stream: true, stdin: true, stdout: true, stderr: true
-        });
+        // Start exec stream
+        const stream = await exec.start({ stdin: true, hijack: true });
+        console.log('[+] Exec stream estabelecido.');
 
-        // O que o aluno digita no Xterm.js vai para o Docker
-        ws.on('message', (msg) => {
-            stream.write(msg);
-        });
-
-        // A resposta do Linux no Docker volta para o Xterm.js
-        stream.on('data', (chunk) => {
-            ws.send(chunk.toString());
-        });
-
-        await container.start();
         ws.send('[!] Laboratório pronto. Terminal interativo estabelecido.\r\n\r\n/ # ');
+
+        // Pipe WebSocket input to Container Exec Stdin
+        ws.on('message', (msg) => {
+            const dataStr = msg.toString();
+            console.log('[WS -> Docker exec]:', JSON.stringify(dataStr));
+            if (stream && stream.writable) {
+                stream.write(msg);
+            } else {
+                console.log('[!] Exec stream is not writable!');
+            }
+        });
+
+        // Pipe Container Exec Stdout/Stderr back to WebSocket
+        stream.on('data', (chunk) => {
+            const dataStr = chunk.toString();
+            console.log('[Docker exec -> WS]:', JSON.stringify(dataStr));
+            ws.send(dataStr);
+        });
 
         ws.on('close', async () => {
             console.log('[-] Aluno desconectado. Destruindo container...');
@@ -173,6 +189,7 @@ wss.on('connection', async (ws) => {
                 stream.end();
                 await container.kill();
                 await container.remove();
+                console.log('[+] Contêiner removido com sucesso.');
             } catch (err) {
                 console.error('Erro ao destruir contêiner:', err.message);
             }
