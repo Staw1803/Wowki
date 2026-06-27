@@ -3,138 +3,213 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
-export const TerminalSimulator: React.FC = () => {
+interface Lesson {
+  id: number;
+  titulo: string;
+  teoria: string;
+  wokwi_url: string;
+  comandos_esperados: string[];
+  objetivo: string;
+  passo_a_passo: string;
+  dica: string;
+  sucesso_msg: string;
+}
+
+interface TerminalSimulatorProps {
+  lesson: Lesson;
+  isCompleted: boolean;
+  onCommandSuccess: () => void;
+  onCommandFailed: () => void;
+}
+
+export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
+  lesson,
+  isCompleted,
+  onCommandSuccess,
+  onCommandFailed,
+}) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddonInstance = useRef<FitAddon | null>(null);
 
-  // Command history/line buffering states
   const lineBuffer = useRef<string>('');
   const isExecuting = useRef<boolean>(false);
+  const correctCommandsEntered = useRef<string[]>([]);
 
-  const prompt = '\r\n\x1b[1;32mguest@iot-hack-sim\x1b[0m:\x1b[1;34m~\x1b[0m$ ';
+  const prompt = '\r\n\x1b[1;34mstudent@classroom\x1b[0m:\x1b[1;36m~\x1b[0m$ ';
 
-  const writeWelcomeMessage = (term: Terminal) => {
-    term.writeln('\x1b[1;36m====================================================\x1b[0m');
-    term.writeln('\x1b[1;36m*         IoT CYBERSECURITY SIMULATOR - v1.0.0      *\x1b[0m');
-    term.writeln('\x1b[1;36m====================================================\x1b[0m');
-    term.writeln('Welcome to the IoT attack emulator console.');
-    term.writeln('Type \x1b[1;33mhelp\x1b[0m to list available hacking and utility commands.');
-    term.writeln('');
-    term.write('\x1b[1;32mguest@iot-hack-sim\x1b[0m:\x1b[1;34m~\x1b[0m$ ');
+  const writeWelcome = (term: Terminal) => {
+    term.clear();
+    term.writeln('\x1b[1;34m====================================================\x1b[0m');
+    term.writeln('\x1b[1;34m*          IOT SECURITY LABORATORY CONSOLE          *\x1b[0m');
+    term.writeln('\x1b[1;34m====================================================\x1b[0m');
+    term.writeln(`Aula ativa: ${lesson.titulo}`);
+    term.writeln('Execute o passo a passo descrito no painel do instrutor.');
+    term.writeln('Digite \x1b[1;33mhelp\x1b[0m para ver as ferramentas globais do console.');
+    if (isCompleted) {
+      term.writeln('\x1b[1;32m[✓] STATUS: Lição concluída com sucesso!\x1b[0m');
+    } else {
+      term.writeln('STATUS: Aguardando comandos do exploit...');
+    }
+    term.write(prompt);
   };
 
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const runNmapScan = async (term: Terminal) => {
-    isExecuting.current = true;
-    term.writeln('');
-    term.writeln('\x1b[1;33m[!] INITIALIZING PORT SCAN ON TARGET: 192.168.1.105 (ESP32-IoT-Node)\x1b[0m');
-    await delay(600);
-    term.writeln('[+] SYN Stealth Scan starting at ' + new Date().toISOString().replace('T', ' ').substring(0, 19));
-    await delay(400);
-    term.writeln('[.] Scanning 1000 ports...');
-    
-    // Progress bar animation
-    const progressSteps = [
-      { percentage: 15, bar: '===                   ' },
-      { percentage: 38, bar: '=======               ' },
-      { percentage: 67, bar: '==============        ' },
-      { percentage: 89, bar: '==================    ' },
-      { percentage: 100, bar: '======================' }
-    ];
-
-    for (const step of progressSteps) {
-      await delay(500);
-      // Carriage return to overwrite progress line
-      term.write(`\r[.] [${step.bar}] ${step.percentage}% complete`);
+  // Reset progress within the current lesson
+  const resetProgress = () => {
+    correctCommandsEntered.current = [];
+    lineBuffer.current = '';
+    isExecuting.current = false;
+    if (terminalInstance.current) {
+      writeWelcome(terminalInstance.current);
     }
-
-    term.writeln('\r\n');
-    await delay(300);
-    
-    // Results
-    term.writeln('\x1b[1;37mPORT     STATE SERVICE     VERSION\x1b[0m');
-    term.writeln('22/tcp   \x1b[1;32mopen\x1b[0m  ssh         Dropbear sshd 2020.81 (protocol 2.0)');
-    await delay(150);
-    term.writeln('80/tcp   \x1b[1;32mopen\x1b[0m  http        Mongoose web server 6.18 (IoT Portal)');
-    await delay(150);
-    term.writeln('1883/tcp \x1b[1;32mopen\x1b[0m  mqtt        Mosquitto MQTT Broker (no auth)');
-    await delay(150);
-    term.writeln('8883/tcp \x1b[1;32mopen\x1b[0m  secure-mqtt Mosquitto MQTT Broker (TLS)');
-    term.writeln('');
-    
-    await delay(400);
-    term.writeln('MAC Address: 24:0A:C4:B8:3C:A2 (Espressif Inc.)');
-    term.writeln('');
-    
-    await delay(300);
-    term.writeln('\x1b[1;33m[!] Vulnerability Assessment:\x1b[0m');
-    term.writeln('  - \x1b[1;31m[CRITICAL]\x1b[0m Port 1883 (MQTT Broker) is accessible without credentials.');
-    term.writeln('             Attackers can publish/subscribe to control lines!');
-    term.writeln('  - \x1b[1;33m[WARNING]\x1b[0m Dropbear SSH 2020.81 has known remote user authentication bypass quirks.');
-    term.writeln('  - \x1b[1;32m[INFO]\x1b[0m HTTP server exposes device configurations in cleartext.');
-    term.writeln('');
-    term.writeln('\x1b[1;32m[+] Scan finished in 2.95s. 4 open ports discovered.\x1b[0m');
-    
-    isExecuting.current = false;
-    term.write(prompt);
   };
 
-  const runSysinfo = async (term: Terminal) => {
+  // Trigger reset whenever the lesson changes
+  useEffect(() => {
+    resetProgress();
+  }, [lesson]);
+
+  const runCommandSimulation = async (cmd: string, term: Terminal) => {
     isExecuting.current = true;
-    term.writeln('');
-    term.writeln('\x1b[1;34m[SYSTEM INFO - IOT SIMULATION TARGET]\x1b[0m');
-    await delay(200);
-    term.writeln('Device Model : ESP32-WROOM-32D Development Board');
-    term.writeln('CPU Cores    : Xtensa Dual-Core 32-bit LX6 Microprocessor');
-    term.writeln('RAM Size     : 520 KB SRAM');
-    term.writeln('Storage      : 4 MB SPI Flash');
-    await delay(200);
-    term.writeln('Firmware     : FreeRTOS Kernel V10.2.0 (Custom Build)');
-    term.writeln('Network Mode : Station & AP (IEEE 802.11 b/g/n)');
-    term.writeln('IP Address   : 192.168.1.105 (DHCP Lease)');
-    term.writeln('Uptime       : 0 days, 2 hours, 14 minutes');
-    term.writeln('MAC Address  : 24:0A:C4:B8:3C:A2');
-    term.writeln('Firmware Hash: sha256_b3769c0d12e95a980753b81123fd3892');
-    isExecuting.current = false;
-    term.write(prompt);
-  };
 
-  const handleCommand = (cmd: string, term: Terminal) => {
-    const trimmed = cmd.trim().toLowerCase();
+    const lowerCmd = cmd.trim().toLowerCase();
+    const expected = lesson.comandos_esperados;
+    const currentStepIndex = correctCommandsEntered.current.length;
 
-    if (trimmed === 'nmap') {
-      runNmapScan(term);
-    } else if (trimmed === 'sysinfo') {
-      runSysinfo(term);
-    } else if (trimmed === 'clear') {
-      term.clear();
-      term.write('guest@iot-hack-sim:~$ ');
-    } else if (trimmed === 'help') {
+    // Check if the command entered is the next expected one
+    if (currentStepIndex < expected.length && expected[currentStepIndex] === lowerCmd) {
+      correctCommandsEntered.current.push(lowerCmd);
       term.writeln('');
-      term.writeln('Available IoT Security Tools:');
-      term.writeln('  \x1b[1;32mnmap\x1b[0m       - Perform network port scanning on the target IoT device');
-      term.writeln('  \x1b[1;32msysinfo\x1b[0m    - Get hardware and OS details from the target node');
-      term.writeln('  \x1b[1;32mclear\x1b[0m      - Clear console output');
-      term.writeln('  \x1b[1;32mhelp\x1b[0m       - Display this commands index page');
-      term.writeln('  \x1b[1;32mabout\x1b[0m      - Learn more about the simulator');
-      term.write(prompt);
-    } else if (trimmed === 'about') {
-      term.writeln('');
-      term.writeln('\x1b[1;35m[IoT HackSim Console]\x1b[0m');
-      term.writeln('An interactive environment built with React, xterm.js, and Wokwi.');
-      term.writeln('Simulate embedded firmware hacking, serial debugging, and port exploitation.');
-      term.writeln('Developed for security training and educational labs.');
-      term.write(prompt);
-    } else if (trimmed === '') {
-      term.write(prompt);
+      
+      // Simulating command execution
+      term.writeln(`[+] Executando utilitário: ${lowerCmd}...`);
+      await delay(800);
+
+      // Show intermediate execution details
+      if (lowerCmd === 'wireshark') {
+        term.writeln('[.] Escaneando interfaces... Interface ativa [eth0] selecionada.');
+        await delay(500);
+        term.writeln('[.] Capturando tráfego na rede local...');
+        term.writeln('[+] Monitoramento em execução. Pronto para filtrar pacotes.');
+      } else if (lowerCmd === 'ws-sniff') {
+        term.writeln('[.] Abrindo socket decodificador e escutando na porta 8080...');
+        await delay(600);
+        term.writeln('[!] Tráfego WebSocket detectado!');
+        term.writeln('    Payload: {"action":"auth", "user":"admin", "pass":"IoT_s3cur3_p@ss"}');
+      } else if (lowerCmd === 'lsusb') {
+        term.writeln('Bus 001 Device 003: ID 303a:1001 Espressif ESP32-S3 USB DevKit');
+        term.writeln('Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub');
+      } else if (lowerCmd === 'esptool') {
+        term.writeln('[.] Conectando ao ESP32 via /dev/ttyUSB0 (baud 115200)...');
+        await delay(600);
+        term.writeln('[.] Chip: ESP32-S3 (revision v0.0)');
+        term.writeln('[.] Lendo flash da posição 0x00000 até 0x100000...');
+        term.writeln('[+] Dump finalizado e salvo em firmware_dump.bin.');
+      } else if (lowerCmd === 'mqtt-sub') {
+        term.writeln('[.] Conectando ao MQTT Broker local (192.168.1.105:1883)...');
+        await delay(500);
+        term.writeln('[+] Conectado. Escutando todos os tópicos (#)...');
+        term.writeln('    Tópico: casa/seguranca/status  Payload: {"status": "locked"}');
+      } else if (lowerCmd === 'mqtt-pub') {
+        term.writeln('[.] Enviando pacote de publicação MQTT...');
+        await delay(500);
+        term.writeln('[+] Mensagem enviada para o broker.');
+      } else if (lowerCmd === 'binwalk') {
+        term.writeln('Scan da imagem de firmware: firmware_dump.bin');
+        term.writeln('DECIMAL       HEXADECIMAL     DESCRIPTION');
+        term.writeln('--------------------------------------------------------------------------------');
+        term.writeln('0             0x0             Squashfs filesystem, little endian, version 4.0');
+        term.writeln('1048576       0x100000        POSIX tar archive (gzip)');
+      } else if (lowerCmd === 'strings') {
+        term.writeln('[.] Buscando constantes e dados em formato ASCII...');
+        await delay(400);
+        term.writeln('wifi_password=admin_private_ap_123');
+        term.writeln('api_endpoint=http://api.manufacturer.com/v2/config');
+      } else if (lowerCmd === 'curl') {
+        term.writeln('[.] Requisitando painel de gerenciamento web...');
+        await delay(500);
+        term.writeln('HTTP/1.1 200 OK | Server: Mongoose/6.18');
+        term.writeln('API Endpoint: /api/ping?host=<ip>');
+      } else if (lowerCmd === 'inject-ping') {
+        term.writeln('[.] Enviando carga útil para injeção de shell no formulário...');
+        await delay(600);
+        term.writeln('[+] Shell capturado via Injeção de Comando.');
+      } else if (lowerCmd === 'rf-record') {
+        term.writeln('[.] Inicializando gravação SDR na faixa de 433.92MHz...');
+        await delay(800);
+        term.writeln('[+] Captura concluída. 1 sinal gravado em wave_sdr.rf');
+      } else if (lowerCmd === 'rf-replay') {
+        term.writeln('[.] Modulando e retransmitindo sinal via SDR...');
+        await delay(600);
+        term.writeln('[+] Sinal transmitido no espectro.');
+      } else if (lowerCmd === 'hydra') {
+        term.writeln('[.] Iniciando dicionário contra SSH na porta 22...');
+        await delay(600);
+        term.writeln('[+] Tentando admin:admin...');
+        term.writeln('[+] Tentando admin:admin123 ... CRASH!');
+        term.writeln('    Chave encontrada -> user: admin | pass: admin123');
+      } else if (lowerCmd === 'ssh') {
+        term.writeln('[.] Conectando via SSH em admin@192.168.1.105...');
+        await delay(500);
+        term.writeln('[+] Sessão autenticada. Acesso shell ativo.');
+      } else if (lowerCmd === 'modbus-read') {
+        term.writeln('Modbus Registers Dump:');
+        term.writeln('Address: 40001 | Value: 24 (Turbine Temperature)');
+        term.writeln('Address: 40002 | Value: 1200 (RPM)');
+      } else if (lowerCmd === 'modbus-write') {
+        term.writeln('[.] Enviando frame Modbus TCP (Write Single Register)...');
+        await delay(400);
+        term.writeln('[+] Registrador modificado no PLC.');
+      } else if (lowerCmd === 'hcitool') {
+        term.writeln('[.] Ativando escaneamento BLE passivo...');
+        await delay(600);
+        term.writeln('Dispositivos localizados:');
+        term.writeln('  AA:BB:CC:DD:EE:FF  SmartLock_V3');
+      } else if (lowerCmd === 'gatttool') {
+        term.writeln('[.] Conectando ao descritor GATT AA:BB:CC:DD:EE:FF...');
+        await delay(600);
+        term.writeln('[+] Escrevendo valor hexadecimal 0x01 no canal de trava...');
+      } else if (lowerCmd === 'dns-spoof') {
+        term.writeln('[.] Inicializando envenenamento DNS ARP...');
+        await delay(500);
+        term.writeln('[+] Redirecionando tráfego do domínio de update para 192.168.1.100.');
+      } else if (lowerCmd === 'fota-poison') {
+        term.writeln('[.] Hospedando servidor local de FOTA...');
+        await delay(600);
+        term.writeln('[.] Transferindo imagem corrompida de atualização...');
+      }
+
+      // Check if all expected commands for this lesson are now entered
+      if (correctCommandsEntered.current.length === expected.length) {
+        await delay(600);
+        term.writeln('');
+        // Print success message from lesson metadata
+        term.writeln(`\x1b[1;32m${lesson.sucesso_msg}\x1b[0m`);
+        onCommandSuccess();
+      }
     } else {
+      // Incorrect command entered
       term.writeln('');
-      term.writeln(`\x1b[1;31msh: command not found: ${cmd}\x1b[0m`);
-      term.writeln('Type \x1b[1;33mhelp\x1b[0m to list valid tools.');
-      term.write(prompt);
+      if (lowerCmd === 'help') {
+        term.writeln('Utilitários globais do console:');
+        term.writeln('  help  - Exibe esta página de ajuda');
+        term.writeln('  clear - Limpa os logs do terminal');
+        term.writeln('  about - Informações do laboratório');
+      } else if (lowerCmd === 'clear') {
+        term.clear();
+      } else if (lowerCmd === 'about') {
+        term.writeln('Laboratório de Hacking IoT. Complete as etapas descritas.');
+      } else {
+        term.writeln(`\x1b[1;31msh: comando inválido ou incorreto para esta etapa: ${cmd}\x1b[0m`);
+        // Notify parent of failed input
+        onCommandFailed();
+      }
     }
+
+    isExecuting.current = false;
+    term.write(prompt);
   };
 
   useEffect(() => {
@@ -145,19 +220,19 @@ export const TerminalSimulator: React.FC = () => {
       cursorBlink: true,
       cursorStyle: 'underline',
       theme: {
-        background: '#03070c',
-        foreground: '#00ff66', // matrix green
-        cursor: '#00ff66',
-        black: '#000000',
-        red: '#ff3366',
-        green: '#00ff66',
-        yellow: '#ffcc00',
-        blue: '#0099ff',
-        magenta: '#ff00ff',
-        cyan: '#00e5ff',
-        white: '#ffffff',
+        background: '#0c0c0e',
+        foreground: '#f4f4f5', // Zinc 100
+        cursor: '#2563eb', // Royal Blue
+        black: '#09090b',
+        red: '#ef4444',
+        green: '#10b981',
+        yellow: '#f59e0b',
+        blue: '#2563eb',
+        magenta: '#d946ef',
+        cyan: '#06b6d4',
+        white: '#f4f4f5',
       },
-      fontSize: 14,
+      fontSize: 13,
       fontFamily: 'var(--font-mono)',
       lineHeight: 1.2,
       rows: 24,
@@ -172,41 +247,36 @@ export const TerminalSimulator: React.FC = () => {
     terminalInstance.current = term;
     fitAddonInstance.current = fitAddon;
 
-    writeWelcomeMessage(term);
+    writeWelcome(term);
 
-    // Keyboard and Data input handler
     term.onData((data) => {
-      if (isExecuting.current) return; // block inputs during command scans
+      if (isExecuting.current) return;
 
       const charCode = data.charCodeAt(0);
 
       if (data === '\r') {
-        // Enter pressed
         const cmd = lineBuffer.current;
         lineBuffer.current = '';
-        handleCommand(cmd, term);
+        runCommandSimulation(cmd, term);
       } else if (charCode === 127 || data === '\b') {
-        // Backspace
         if (lineBuffer.current.length > 0) {
           lineBuffer.current = lineBuffer.current.slice(0, -1);
-          term.write('\b \b'); // erase last char on screen
+          term.write('\b \b');
         }
       } else if (charCode >= 32 && charCode < 127) {
-        // Normal printable characters
         lineBuffer.current += data;
         term.write(data);
       }
     });
 
-    // Resize observer to keep xterm fitted to its container
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit();
       } catch (err) {
-        // Ignore container dimensions being zero during transitions
+        // Safe check
       }
     });
-    
+
     if (terminalRef.current.parentElement) {
       resizeObserver.observe(terminalRef.current.parentElement);
     }
@@ -215,19 +285,15 @@ export const TerminalSimulator: React.FC = () => {
       term.dispose();
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [lesson, isCompleted]);
 
   return (
-    <div className="panel panel-right">
+    <div className="panel">
       <div className="panel-header">
-        <div className="panel-title">INTERACTIVE ATTACK SHELL</div>
+        <div className="panel-title">TERMINAL DE COMANDO</div>
         <div className="device-status">
           <div className="status-item">
-            <span>IF: eth0</span>
-          </div>
-          <div className="status-item">
-            <span className="status-dot active"></span>
-            <span>SHELL READY</span>
+            <span>TTY: /dev/pts/1</span>
           </div>
         </div>
       </div>

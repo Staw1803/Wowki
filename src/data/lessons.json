@@ -1,0 +1,112 @@
+[
+  {
+    "id": 1,
+    "titulo": "Aula 01: Interceptando WebSockets",
+    "teoria": "Muitos dispositivos IoT utilizam conexões WebSocket sem criptografia (ws://) para enviar comandos e leituras em tempo real de forma leve. Quando não criptografados, qualquer atacante conectado na mesma rede local pode cheirar os pacotes trafegados e extrair dados confidenciais.",
+    "objetivo": "Use ferramentas de rede no terminal à direita para farejar o tráfego de dados do dispositivo e encontrar a senha do administrador do IoT Gateway.",
+    "passo_a_passo": "1. Digite 'wireshark' para iniciar o monitoramento de rede na interface Ethernet.\n2. Digite 'ws-sniff' para filtrar especificamente pacotes contendo tráfego WebSocket e ler as mensagens em texto plano.",
+    "wokwi_url": "https://wokwi.com/projects/349107446543155796?embed=1",
+    "comandos_esperados": ["wireshark", "ws-sniff"],
+    "dica": "Tente primeiro rodar o utilitário 'wireshark' para ver as conexões ativas na interface local e, em seguida, use o 'ws-sniff' para decodificar o WebSocket.",
+    "sucesso_msg": "[!] Senha de Admin encontrada nas mensagens de texto plano do WebSocket: 'IoT_s3cur3_p@ss'\n[+] Lição concluída com sucesso! Gateway IoT comprometido."
+  },
+  {
+    "id": 2,
+    "titulo": "Aula 02: Ataque Físico via USB (EEPROM Dump)",
+    "teoria": "A segurança física é o elo mais fraco de muitos dispositivos de consumo. Se um invasor tiver acesso físico ao hardware, ele poderá conectar-se diretamente às portas seriais (UART) ou interfaces de programação (JTAG) e extrair o firmware do chip de memória EEPROM ou Flash.",
+    "objetivo": "Faça o dump do firmware do microcontrolador conectado à porta serial para buscar segredos codificados no código.",
+    "passo_a_passo": "1. Execute 'lsusb' para listar os dispositivos de barramento USB conectados ao terminal.\n2. Execute 'esptool' (ou 'avrdude') para ler a memória flash do dispositivo conectado e salvar em um arquivo.",
+    "wokwi_url": "https://wokwi.com/projects/322577683855704658?embed=1",
+    "comandos_esperados": ["lsusb", "esptool"],
+    "dica": "Use 'lsusb' para ver em qual porta serial o microcontrolador está associado. Em seguida, utilize a ferramenta 'esptool' para ler os blocos de memória flash da placa.",
+    "sucesso_msg": "[!] Extraindo memória flash...\n[+] Dump de firmware finalizado com sucesso! Chave estática secreta encontrada na posição 0x000a0: 'SECRET_FLASH_KEY_2026'."
+  },
+  {
+    "id": 3,
+    "titulo": "Aula 03: Hijacking de MQTT",
+    "teoria": "O protocolo MQTT é a espinha dorsal de comunicação para a maioria dos sensores e atuadores domésticos. Corretores (brokers) expostos na internet ou rede local sem autenticação por senha permitem que qualquer cliente escute (subscribe) ou envie (publish) mensagens de comando para dispositivos domésticos (como travas de portas ou lâmpadas).",
+    "objetivo": "Inscreva-se nos tópicos de um broker local vulnerável para descobrir as mensagens de controle e envie um payload para desbloquear a fechadura inteligente.",
+    "passo_a_passo": "1. Execute 'mqtt-sub' para escutar todas as mensagens que circulam no Broker.\n2. Execute 'mqtt-pub' para publicar o comando 'unlock' no tópico da fechadura inteligente.",
+    "wokwi_url": "https://wokwi.com/projects/349107446543155796?embed=1",
+    "comandos_esperados": ["mqtt-sub", "mqtt-pub"],
+    "dica": "Inicie o escopo com o comando 'mqtt-sub' para monitorar os canais do broker. Após ver o tópico correto da fechadura, use o 'mqtt-pub' para enviar a ação de destrancamento.",
+    "sucesso_msg": "[+] Inscrito com sucesso no tópico central.\n[!] Mensagem enviada para 'casa/sala/fechadura': 'cmd=unlock'\n[+] Fechadura IoT destravada remotamente via MQTT!"
+  },
+  {
+    "id": 4,
+    "titulo": "Aula 04: Engenharia Reversa de Firmware",
+    "teoria": "Quando não é possível explorar a placa ativa, engenheiros reversos analisam arquivos de imagem de firmware descarregados. Ferramentas como o 'binwalk' ajudam a identificar e extrair partições de sistemas de arquivos compactados ocultos dentro da imagem binária do dispositivo.",
+    "objetivo": "Utilize ferramentas de análise estática no binário baixado do sensor para ler strings ocultas e extrair partições criptografadas.",
+    "passo_a_passo": "1. Use 'binwalk' para verificar e extrair o sistema de arquivos contido na imagem firmware.bin.\n2. Use 'strings' para listar todo o texto legível codificado na imagem.",
+    "wokwi_url": "https://wokwi.com/projects/322577683855704658?embed=1",
+    "comandos_esperados": ["binwalk", "strings"],
+    "dica": "O comando 'binwalk' serve para desempacotar arquivos comprimidos e sistemas de arquivo da imagem. Use 'strings' para extrair credenciais hardcoded armazenadas na compilação do código.",
+    "sucesso_msg": "[!] Extraindo partições de firmware.bin...\n[!] Sistema squashfs localizado e extraído.\n[+] strings firmware.bin revelou: 'wifi_password=admin_private_ap_123'!"
+  },
+  {
+    "id": 5,
+    "titulo": "Aula 05: Injeção de Comando no Portal Web",
+    "teoria": "Muitas gateways e hubs residenciais possuem painéis web administrativos com ferramentas como 'ping' ou 'traceroute'. Se as entradas digitadas pelo usuário não forem limpas corretamente antes de serem passadas para as chamadas de shell do sistema operacional, o atacante poderá concatenar comandos e obter execução de código.",
+    "objetivo": "Explore o painel administrativo do roteador injetando um comando no formulário de ping para ler arquivos internos do sistema (/etc/passwd).",
+    "passo_a_passo": "1. Use 'curl' para verificar as APIs expostas no painel web.\n2. Execute 'inject-ping' para enviar a carga maliciosa simulada e executar comandos remotos no console da gateway.",
+    "wokwi_url": "https://wokwi.com/projects/349107446543155796?embed=1",
+    "comandos_esperados": ["curl", "inject-ping"],
+    "dica": "Analise a API usando 'curl' para validar o endpoint do painel. Depois disso, utilize 'inject-ping' para forçar a execução do comando secundário junto com a requisição de rede.",
+    "sucesso_msg": "[!] curl http://gateway.local/api/ping?host=127.0.0.1;cat+/etc/passwd\n[+] Injeção bem-sucedida! Arquivo /etc/passwd obtido:\n    root:x:0:0:root:/root:/bin/sh\n    admin:x:1000:1000:admin:/home/admin:/bin/sh"
+  },
+  {
+    "id": 6,
+    "titulo": "Aula 06: Ataque de Replay em RF (Sub-GHz)",
+    "teoria": "Dispositivos IoT legados, como portões automáticos, alarmes e chaves de carros mais antigos, usam rádio frequência (RF) fixa ou sem mecanismos de Rolling Codes. Um invasor pode sintonizar a frequência usando uma antena SDR (Software Defined Radio), capturar a transmissão da chave e retransmitir o mesmo sinal para acionar o dispositivo.",
+    "objetivo": "Monitore a frequência de 433MHz usando rádio definido por software, grave o sinal da chave original e repita o código para abrir o portão físico.",
+    "passo_a_passo": "1. Digite 'rf-record' para escutar o sinal de 433MHz e gravar o pulso de acionamento do portão.\n2. Digite 'rf-replay' para retransmitir a onda gravada na frequência e acionar o motor.",
+    "wokwi_url": "https://wokwi.com/projects/322577683855704658?embed=1",
+    "comandos_esperados": ["rf-record", "rf-replay"],
+    "dica": "Use 'rf-record' primeiro para capturar e processar os pacotes de radiofrequência da antena e salve-os. Em seguida, utilize 'rf-replay' para injetar a onda gravada de volta no espectro de RF.",
+    "sucesso_msg": "[+] Rádio sintonizado em 433.92 MHz.\n[+] Gravados 124ms de sinal bruto.\n[!] Enviando sinal via RF-Transmitter...\n[+] Receptor validou o sinal de replay! Portão residencial aberto."
+  },
+  {
+    "id": 7,
+    "titulo": "Aula 07: Brute-Forcing do SSH",
+    "teoria": "Uma quantidade preocupante de câmeras IP e roteadores residenciais são deixados com o serviço SSH ativo e senhas padrão do fabricante (como root/root ou admin/admin) na rede pública ou local.",
+    "objetivo": "Aplique um ataque de força bruta contra o serviço SSH do roteador IoT usando uma lista de senhas padrões para tentar ganhar acesso root.",
+    "passo_a_passo": "1. Execute 'hydra' para iniciar um teste de senhas em massa no protocolo SSH na porta 22.\n2. Execute 'ssh' com a credencial válida descoberta para acessar a shell do roteador.",
+    "wokwi_url": "https://wokwi.com/projects/349107446543155796?embed=1",
+    "comandos_esperados": ["hydra", "ssh"],
+    "dica": "Tente 'hydra' para disparar ataques automatizados de dicionário de credenciais locais. Quando obter sucesso com a senha, use 'ssh' para se conectar à shell de comando.",
+    "sucesso_msg": "[!] hydra -l admin -P wordlist.txt ssh://192.168.1.105\n[+] SSH Credenciais válidas encontradas: admin / admin123\n[+] Conectando SSH root@192.168.1.105...\nWelcome to OpenWrt IoT Gateway! Shell de controle root ativa."
+  },
+  {
+    "id": 8,
+    "titulo": "Aula 08: Modbus TCP Spoofing",
+    "teoria": "O protocolo Modbus é um padrão industrial clássico usado em redes SCADA e automação de fábricas (IIoT). Criado nos anos 70, ele não possui qualquer autenticação ou criptografia. Se um invasor acessar a rede Modbus, poderá ler todos os registros dos sensores e forçar comandos falsos para os controladores lógicos (PLCs).",
+    "objetivo": "Monitore os registros de temperatura de uma turbina e force a escrita de valores falsos para fingir um superaquecimento.",
+    "passo_a_passo": "1. Execute 'modbus-read' para escanear a tabela de registros e as leituras atuais do sensor.\n2. Execute 'modbus-write' para modificar o valor do registro do sensor de temperatura para 200°C.",
+    "wokwi_url": "https://wokwi.com/projects/349107446543155796?embed=1",
+    "comandos_esperados": ["modbus-read", "modbus-write"],
+    "dica": "O utilitário 'modbus-read' exibe a situação em tempo real das tabelas Modbus locais. Modifique os valores usando 'modbus-write' especificando o endereço do registrador correto.",
+    "sucesso_msg": "[+] Modbus TCP Scan: Lendo Registradores (holding registers 40001-40010)\n    Reg 40001 (Temp): 24.5 C\n[!] modbus-write -r 40001 -v 200\n[+] Registrador escrito com sucesso. Temperatura alterada para 200.0 C! Alarmes de resfriamento ativados."
+  },
+  {
+    "id": 9,
+    "titulo": "Aula 09: BLE Sniffing e Engenharia Reversa",
+    "teoria": "Dispositivos wearables e fechaduras eletrônicas usam Bluetooth Low Energy (BLE). Atacantes podem usar sniffers BLE para descobrir os endereços MAC do dispositivo e inspecionar os serviços/características GATT expostos, tentando ler ou escrever diretamente nos endpoints de comando.",
+    "objetivo": "Escaneie a vizinhança Bluetooth para descobrir o MAC Address da fechadura inteligente e use gatttool para escrever o valor Hexadecimal de abertura no canal correspondente.",
+    "passo_a_passo": "1. Execute 'hcitool' para fazer a busca ativa de sinais e identificar o endereço MAC da fechadura BLE.\n2. Execute 'gatttool' para interagir com os descritores GATT e enviar a instrução de abertura.",
+    "wokwi_url": "https://wokwi.com/projects/322577683855704658?embed=1",
+    "comandos_esperados": ["hcitool", "gatttool"],
+    "dica": "Utilize 'hcitool' para listar os endereços físicos Bluetooth das proximidades. Quando isolar o MAC do IoT, use 'gatttool' para enviar requisições de leitura/escrita.",
+    "sucesso_msg": "[+] hcitool lescan...\n    Found device: AA:BB:CC:DD:EE:FF (SmartLock)\n[!] gatttool -b AA:BB:CC:DD:EE:FF --char-write-req -a 0x001d -n 01\n[+] BLE comando aceito pelo chip de destino. Status: DESBLOQUEADO."
+  },
+  {
+    "id": 10,
+    "titulo": "Aula 10: FOTA Poisoning (DNS Spoofing)",
+    "teoria": "Muitas atualizações de firmware OTA (FOTA) em dispositivos baratos de IoT são solicitadas através de canais HTTP comuns sem verificação de assinatura digital. Se o DNS do dispositivo for alterado ou envenenado na rede local, ele pode baixar um arquivo de firmware contendo malwares sob o disfarce de uma atualização legítima.",
+    "objetivo": "Envenene a tabela de DNS do microcontrolador para redirecionar o download da atualização OTA para a sua própria máquina local e injete o firmware modificado.",
+    "passo_a_passo": "1. Execute 'dns-spoof' para simular o redirecionamento de requisições de domínio do servidor de FOTA.\n2. Execute 'fota-poison' para empurrar o binário malicioso para o dispositivo.",
+    "wokwi_url": "https://wokwi.com/projects/349107446543155796?embed=1",
+    "comandos_esperados": ["dns-spoof", "fota-poison"],
+    "dica": "Inicie o interceptor com o comando 'dns-spoof' para que o microcontrolador aponte a requisição de atualização para o seu servidor. Em seguida, use 'fota-poison' para transferir o binário do exploit.",
+    "sucesso_msg": "[+] DNS Poisoning ativo: updates.iotmanufacturer.com -> 192.168.1.100\n[!] ESP32 solicitou FOTA firmware...\n[!] Enviando payload binário malicioso (1.2 MB)\n[+] Firmware carregado e gravado com sucesso! Backdoor IoT ativo."
+  }
+]
