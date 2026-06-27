@@ -23,10 +23,10 @@ export const WokwiSimulator: React.FC<WokwiSimulatorProps> = ({ wokwiUrl }) => {
               src={wokwiUrl}
               style={{
                 position: 'absolute',
-                top: '-49px', // Offset the top header bar (Simulation, Code tabs)
+                top: '-88px', // Offset both the top black bar and the tab bar
                 left: 0,
                 width: '100%',
-                height: 'calc(100% + 49px)', // Compensation for offset
+                height: 'calc(100% + 88px)', // Compensation for offset
                 border: 'none',
               }}
               title="Wokwi Simulator"
