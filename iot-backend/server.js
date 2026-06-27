@@ -25,23 +25,60 @@ wss.on('connection', async (ws) => {
         // Fallback Mock Shell
         ws.send('Welcome to IoT-OS Mock Shell! Type "help" to see tools.\r\n/ # ');
         let mockBuffer = '';
+        let installedPackages = new Set(['binwalk', 'strings', 'curl', 'wireshark', 'ws-sniff']);
 
-        ws.on('message', (msg) => {
+        ws.on('message', async (msg) => {
             const char = msg.toString();
 
             if (char === '\r') {
-                const cmd = mockBuffer.trim().toLowerCase();
+                const cmdLine = mockBuffer.trim();
+                const args = cmdLine.split(/\s+/);
+                const cmd = args[0].toLowerCase();
                 mockBuffer = '';
                 ws.send('\r\n');
 
                 if (cmd === 'help') {
-                    ws.send('Ferramentas de Hacking: wireshark, ws-sniff, lsusb, esptool, mqtt-sub, mqtt-pub, binwalk, strings, curl, inject-ping, rf-record, rf-replay, hydra, ssh, modbus-read, modbus-write, hcitool, gatttool, dns-spoof, fota-poison\r\nOutros: ls, whoami, clear, help\r\n');
+                    ws.send('Ferramentas de Hacking: wireshark, ws-sniff, lsusb, esptool, mqtt-sub, mqtt-pub, binwalk, strings, curl, inject-ping, rf-record, rf-replay, hydra, ssh, modbus-read, modbus-write, hcitool, gatttool, dns-spoof, fota-poison\r\nOutros: ls, whoami, clear, help, nmap, apk\r\n');
                 } else if (cmd === 'whoami') {
                     ws.send('root\r\n');
                 } else if (cmd === 'clear') {
                     ws.send('\x1bc'); // ANSI code to clear terminal screen
                 } else if (cmd === 'ls') {
                     ws.send('bin/   etc/   lib/   root/   sys/   usr/   var/   firmware_dump.bin\r\n');
+                } else if (cmd === 'apt-get' || cmd === 'apt') {
+                    ws.send('sh: apt-get: not found. (Hint: Alpine Linux usa "apk" em vez de "apt-get". Tente rodar: apk add nmap)\r\n');
+                } else if (cmd === 'apk') {
+                    if (args[1] === 'add') {
+                        const pkg = args[2];
+                        if (!pkg) {
+                            ws.send('ERROR: Especifique o pacote para adicionar (ex: apk add nmap)\r\n');
+                        } else {
+                            ws.send(`fetch https://dl-cdn.alpinelinux.org/alpine/v3.19/main/x86_64/APKINDEX.tar.gz\r\n`);
+                            ws.send(`(1/3) Installing libpcap (1.10.4-r0)\r\n`);
+                            ws.send(`(2/3) Installing ${pkg}-libs (7.92-r2)\r\n`);
+                            ws.send(`(3/3) Installing ${pkg} (7.92-r2)\r\n`);
+                            ws.send(`Executing busybox-1.36.1-r15.trigger\r\n`);
+                            ws.send(`OK: 12 MiB in 18 packages\r\n`);
+                            installedPackages.add(pkg.toLowerCase());
+                        }
+                    } else {
+                        ws.send('Apk Package Manager. Uso: apk add <pacote>\r\n');
+                    }
+                } else if (cmd === 'nmap') {
+                    if (installedPackages.has('nmap')) {
+                        ws.send('[!] Starting nmap 7.92 ( https://nmap.org ) at ' + new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC\r\n');
+                        ws.send('Nmap scan report for 192.168.1.105 (ESP32-Gateway)\r\n');
+                        ws.send('Host is up (0.0031s latency).\r\n');
+                        ws.send('Not shown: 996 closed tcp ports (reset)\r\n');
+                        ws.send('PORT     STATE SERVICE\r\n');
+                        ws.send('22/tcp   \x1b[1;32mopen\x1b[0m  ssh\r\n');
+                        ws.send('80/tcp   \x1b[1;32mopen\x1b[0m  http\r\n');
+                        ws.send('1883/tcp \x1b[1;32mopen\x1b[0m  mqtt\r\n');
+                        ws.send('8883/tcp \x1b[1;32mopen\x1b[0m  secure-mqtt\r\n\r\n');
+                        ws.send('Nmap done: 1 IP address (1 host up) scanned in 0.45 seconds\r\n');
+                    } else {
+                        ws.send('sh: nmap: not found. (Hint: Instale o nmap rodando: apk add nmap)\r\n');
+                    }
                 } else if (cmd === 'wireshark') {
                     ws.send('[.] Escaneando interfaces... Interface ativa [eth0] selecionada.\r\n[.] Capturando tráfego na rede local...\r\n[+] Monitoramento em execução. Pronto para filtrar pacotes.\r\n');
                 } else if (cmd === 'ws-sniff') {
@@ -82,8 +119,8 @@ wss.on('connection', async (ws) => {
                     ws.send('[.] Inicializando envenenamento DNS ARP...\r\n[+] Redirecionando tráfego do domínio de update para 192.168.1.100.\r\n');
                 } else if (cmd === 'fota-poison') {
                     ws.send('[.] Hospedando servidor local de FOTA e transferindo imagem...\r\n[+] Firmware carregado e gravado com sucesso! Backdoor IoT ativo.\r\n');
-                } else if (cmd !== '') {
-                    ws.send(`sh: ${cmd}: not found (Simulated OS)\r\n`);
+                } else if (cmdLine !== '') {
+                    ws.send(`sh: ${cmdLine}: command not found (Simulated OS)\r\n`);
                 }
                 ws.send('/ # ');
             } else if (char.charCodeAt(0) === 127 || char === '\b') {
