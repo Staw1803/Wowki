@@ -141,29 +141,36 @@ wss.on('connection', async (ws) => {
         const container = await docker.createContainer({
             Image: 'alpine',
             Cmd: ['/bin/sh'],
+            AttachStdin: true,
+            AttachStdout: true,
+            AttachStderr: true,
             Tty: true,
             OpenStdin: true,
             StdinOnce: false
         });
 
-        await container.start();
-        ws.send('[!] Laboratório pronto. Terminal interativo estabelecido.\r\n\r\n/ # ');
-
+        // Conecta a entrada e saída do container ANTES de iniciar
         const stream = await container.attach({
             stream: true, stdin: true, stdout: true, stderr: true
         });
 
+        // O que o aluno digita no Xterm.js vai para o Docker
         ws.on('message', (msg) => {
             stream.write(msg);
         });
 
+        // A resposta do Linux no Docker volta para o Xterm.js
         stream.on('data', (chunk) => {
             ws.send(chunk.toString());
         });
 
+        await container.start();
+        ws.send('[!] Laboratório pronto. Terminal interativo estabelecido.\r\n\r\n/ # ');
+
         ws.on('close', async () => {
             console.log('[-] Aluno desconectado. Destruindo container...');
             try {
+                stream.end();
                 await container.kill();
                 await container.remove();
             } catch (err) {
