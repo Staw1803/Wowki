@@ -42,7 +42,7 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
   const [communityChallenges, setCommunityChallenges] = useState<CommunityChallenge[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fallback mock community challenges
+  // Fallback community challenges
   const mockCommunityChallenges: CommunityChallenge[] = [
     {
       id: 'mock-1',
@@ -84,7 +84,7 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
   useEffect(() => {
     const fetchChallenges = async () => {
       if (!isSupabaseConfigured) {
-        // Fallback offline simulation: Merge local storage entries with standard mocks
+        // Fallback offline: Merge local storage entries with mocks
         const local = getLocalChallenges();
         setCommunityChallenges([...local, ...mockCommunityChallenges]);
         setLoading(false);
@@ -109,7 +109,7 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
           setCommunityChallenges([...local, ...mockCommunityChallenges]);
         }
       } catch (err) {
-        console.warn('Supabase fetch failed, loading local/mock fallback challenges:', err);
+        console.warn('Fetch failed, loading fallback challenges:', err);
         const local = getLocalChallenges();
         setCommunityChallenges([...local, ...mockCommunityChallenges]);
       } finally {
@@ -143,11 +143,6 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
           <p className="text-slate-400 mt-2">
             Escolha uma das aulas do currículo oficial ou explore os laboratórios publicados por outros alunos.
           </p>
-          {!isSupabaseConfigured && (
-            <p className="text-[10px] text-amber-400 mt-3 bg-amber-500/5 border border-amber-500/20 py-1 px-3 rounded inline-block">
-              ⚠️ Conexão Supabase inativa. Rodando no modo de simulação (Local Storage).
-            </p>
-          )}
         </div>
 
         {/* Vitrine 1: Aulas Oficiais */}
@@ -223,7 +218,6 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {communityChallenges.map((challenge) => {
                 const solved = completedCommunityIds.includes(challenge.id.toString());
-                const isLocal = challenge.id.toString().startsWith('local-');
                 return (
                   <div
                     key={challenge.id}
@@ -234,11 +228,6 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getDifficultyBadge(challenge.difficulty)}
-                          {isLocal && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                              LOCAL
-                            </span>
-                          )}
                         </div>
                         {solved ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">✓ CAPTURED</span>

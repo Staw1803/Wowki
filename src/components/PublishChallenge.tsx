@@ -44,7 +44,7 @@ export const PublishChallenge: React.FC = () => {
 
         setStatusMsg({
           type: 'success',
-          text: 'Desafio publicado com sucesso localmente! (Supabase em modo simulação)',
+          text: 'Desafio publicado com sucesso!',
         });
       } else {
         // Real Supabase insert
@@ -68,7 +68,7 @@ export const PublishChallenge: React.FC = () => {
           throw error;
         }
 
-        setStatusMsg({ type: 'success', text: 'Desafio publicado com sucesso no Supabase!' });
+        setStatusMsg({ type: 'success', text: 'Desafio publicado com sucesso!' });
       }
 
       // Reset form fields
@@ -103,11 +103,6 @@ export const PublishChallenge: React.FC = () => {
           <p className="text-sm text-slate-400 mt-1">
             Cadastre um novo laboratório IoT e defina a flag secreta para os alunos capturarem.
           </p>
-          {!isSupabaseConfigured && (
-            <p className="text-[10px] text-amber-400 mt-2 bg-amber-500/10 border border-amber-500/20 py-1 px-2 rounded">
-              ⚠️ Modo Simulação Ativo: As credenciais do Supabase no .env não foram configuradas. Os dados serão salvos localmente.
-            </p>
-          )}
         </div>
 
         {/* Status Alerts */}
