@@ -28,33 +28,33 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
   onCommandSuccess,
   onCommandFailed,
 }) => {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const terminalInstance = useRef<Terminal | null>(null);
-  const fitAddonInstance = useRef<FitAddon | null>(null);
-  const websocketRef = useRef<WebSocket | null>(null);
+  const divTerm = useRef<HTMLDivElement>(null);
+  const termObj = useRef<Terminal | null>(null);
+  const fitObj = useRef<FitAddon | null>(null);
+  const socketConn = useRef<WebSocket | null>(null);
 
-  // Line buffer to spy on user commands for lesson completion
-  const lineBuffer = useRef<string>('');
+  // Guarda a linha atual digitada pra checar se acertou a flag/comando
+  const bufferLinha = useRef<string>('');
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    if (!divTerm.current) return;
 
-    // Initialize Terminal
+    // Configura o xterm.js com um visual escuro minimalista
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: 'underline',
       theme: {
         background: '#0c0c0e',
         foreground: '#f4f4f5',
-        cursor: '#2563eb',
+        cursor: '#ffffff',
         black: '#09090b',
         red: '#ef4444',
         green: '#10b981',
         yellow: '#f59e0b',
-        blue: '#2563eb',
+        blue: '#e2e8f0',
         magenta: '#d946ef',
         cyan: '#06b6d4',
-        white: '#f4f4f5',
+        white: '#ffffff',
       },
       fontSize: 13,
       fontFamily: 'var(--font-mono)',
@@ -64,67 +64,68 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
-
-    term.open(terminalRef.current);
+    term.open(divTerm.current);
     
-    // Fit immediately, when fonts are ready, and after a short delay
+    // Tenta ajustar o layout logo no inicio
     try {
       fitAddon.fit();
-    } catch (e) {}
+    } catch (err) {}
 
+    // Refaz o ajuste assim que as fontes externas carregarem
     document.fonts.ready.then(() => {
       try {
         fitAddon.fit();
-      } catch (e) {}
+      } catch (err) {}
     });
 
-    const initialFitTimeout = setTimeout(() => {
+    // Gambiarra de segurança: tenta rodar o fit mais uma vez depois de 300ms
+    const timerFit = setTimeout(() => {
       try {
         fitAddon.fit();
-      } catch (e) {}
+      } catch (err) {}
     }, 300);
 
-    terminalInstance.current = term;
-    fitAddonInstance.current = fitAddon;
+    termObj.current = term;
+    fitObj.current = fitAddon;
 
-    // Connect to our Orchestrator Backend
+    // Abre conexão com o servidor local
     const ws = new WebSocket('ws://localhost:8080');
-    websocketRef.current = ws;
+    socketConn.current = ws;
 
-    ws.onmessage = (event) => {
-      term.write(event.data);
+    ws.onmessage = (e) => {
+      term.write(e.data);
     };
 
     ws.onclose = () => {
-      term.writeln('\r\n\x1b[1;31m[-] Conexão com o Orquestrador Docker perdida.\x1b[0m');
+      term.writeln('\r\n\x1b[1;31m[-] Conexão com o orquestrador encerrada.\x1b[0m');
     };
 
     ws.onerror = () => {
-      term.writeln('\r\n\x1b[1;31m[Erro] Não foi possível conectar ao servidor backend em ws://localhost:8080\x1b[0m');
+      term.writeln('\r\n\x1b[1;31m[Erro] Sem sinal do backend na porta 8080.\x1b[0m');
     };
 
-    // Keystroke typing listener
+    // Fica de olho no teclado do usuario
     term.onData((data) => {
-      // 1. Send data to Docker container
+      // Repassa as teclas pro container rodando no backend
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(data);
       }
 
-      // 2. Track local input buffer to trigger classroom victories
-      const charCode = data.charCodeAt(0);
+      const codigoChar = data.charCodeAt(0);
 
+      // Usuário apertou enter
       if (data === '\r') {
-        const cmd = lineBuffer.current.trim();
+        const cmd = bufferLinha.current.trim();
         const cmdLower = cmd.toLowerCase();
-        lineBuffer.current = '';
+        bufferLinha.current = '';
 
-        // Check if it is a community challenge or official lesson
-        const isCommunity = !('comandos_esperados' in lesson);
+        // Vê se é um desafio criado pela comunidade (não tem lista de comandos esperados)
+        const ehComunidade = !('comandos_esperados' in lesson);
 
-        if (isCommunity) {
-          // Community challenge validation: checks if user typed the secret flag
-          const secretFlag = (lesson as any).secret_flag;
-          if (secretFlag && cmd.toLowerCase().includes(secretFlag.toLowerCase())) {
+        if (ehComunidade) {
+          // Validação por secret flag
+          const flagAlvo = (lesson as any).secret_flag;
+          if (flagAlvo && cmd.toLowerCase().includes(flagAlvo.toLowerCase())) {
             term.writeln('\r\n\x1b[1;32m[✓] FLAG CAPTURADA COM SUCESSO!\x1b[0m');
             term.writeln(`\x1b[1;32mParabéns! Você resolveu o desafio: ${(lesson as any).title}\x1b[0m`);
             onCommandSuccess();
@@ -135,9 +136,9 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
             onCommandFailed();
           }
         } else {
-          // Official lesson validation
-          const expected = lesson.comandos_esperados || [];
-          if (expected.includes(cmdLower)) {
+          // Validação por comando sequencial (aulas oficiais)
+          const cmdEsperados = lesson.comandos_esperados || [];
+          if (cmdEsperados.includes(cmdLower)) {
             onCommandSuccess();
           } else if (
             cmd !== '' &&
@@ -146,33 +147,36 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
             onCommandFailed();
           }
         }
-      } else if (charCode === 127 || data === '\b') {
-        if (lineBuffer.current.length > 0) {
-          lineBuffer.current = lineBuffer.current.slice(0, -1);
+      } 
+      // Usuário apertou backspace (127 é delete, 8 é backspace)
+      else if (codigoChar === 127 || data === '\b') {
+        if (bufferLinha.current.length > 0) {
+          bufferLinha.current = bufferLinha.current.slice(0, -1);
         }
-      } else if (charCode >= 32 && charCode < 127) {
-        lineBuffer.current += data;
+      } 
+      // Caracteres comuns digitáveis
+      else if (codigoChar >= 32 && codigoChar < 127) {
+        bufferLinha.current += data;
       }
     });
 
-    // Resize listener
-    const resizeObserver = new ResizeObserver(() => {
+    // Se o painel for redimensionado, ajusta o grid de colunas do terminal
+    const observador = new ResizeObserver(() => {
       try {
         fitAddon.fit();
-      } catch (err) {
-        // Safe check
-      }
+      } catch (err) {}
     });
 
-    if (terminalRef.current.parentElement) {
-      resizeObserver.observe(terminalRef.current.parentElement);
+    if (divTerm.current.parentElement) {
+      observador.observe(divTerm.current.parentElement);
     }
 
+    // Limpa a sujeira quando desmontar o componente
     return () => {
       ws.close();
       term.dispose();
-      resizeObserver.disconnect();
-      clearTimeout(initialFitTimeout);
+      observador.disconnect();
+      clearTimeout(timerFit);
     };
   }, [lesson]);
 
@@ -192,7 +196,7 @@ export const TerminalSimulator: React.FC<TerminalSimulatorProps> = ({
         </div>
       </div>
       <div className="panel-content">
-        <div ref={terminalRef} className="terminal-container" />
+        <div ref={divTerm} className="terminal-container" />
       </div>
     </div>
   );

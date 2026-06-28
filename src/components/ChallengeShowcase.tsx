@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { supabase, temSupabase } from '../lib/supabaseClient';
 import lessonsData from '../data/lessons.json';
 
 interface Lesson {
@@ -26,24 +26,24 @@ interface CommunityChallenge {
 }
 
 interface ChallengeShowcaseProps {
-  completedLessonIds: number[];
-  completedCommunityIds: string[];
-  onSelectOfficial: (lessonId: number) => void;
-  onSelectCommunity: (challenge: CommunityChallenge) => void;
+  feitasOficiais: number[];
+  feitasComunidade: string[];
+  abrirOficial: (lessonId: number) => void;
+  abrirComunidade: (challenge: CommunityChallenge) => void;
 }
 
 export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
-  completedLessonIds,
-  completedCommunityIds,
-  onSelectOfficial,
-  onSelectCommunity,
+  feitasOficiais,
+  feitasComunidade,
+  abrirOficial,
+  abrirComunidade,
 }) => {
-  const officialLessons: Lesson[] = lessonsData as Lesson[];
-  const [communityChallenges, setCommunityChallenges] = useState<CommunityChallenge[]>([]);
-  const [loading, setLoading] = useState(true);
+  const aulas: Lesson[] = lessonsData as Lesson[];
+  const [desafiosDb, setDesafiosDb] = useState<CommunityChallenge[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
-  // Fallback community challenges
-  const mockCommunityChallenges: CommunityChallenge[] = [
+  // Desafios mocados de backup pro site não ficar vazio caso o Supabase não esteja ativo
+  const desafiosFake: CommunityChallenge[] = [
     {
       id: 'mock-1',
       creator_id: null,
@@ -76,51 +76,51 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
     },
   ];
 
-  const getLocalChallenges = (): CommunityChallenge[] => {
+  // Carrega as coisas salvas localmente pelo form do localStorage
+  const pegarLocais = (): CommunityChallenge[] => {
     const raw = localStorage.getItem('wowki_local_challenges');
     return raw ? JSON.parse(raw) : [];
   };
 
   useEffect(() => {
-    const fetchChallenges = async () => {
-      if (!isSupabaseConfigured) {
-        const local = getLocalChallenges();
-        setCommunityChallenges([...local, ...mockCommunityChallenges]);
-        setLoading(false);
+    const carregarDesafios = async () => {
+      // Se não tiver credenciais, usa direto o localStorage + mocks
+      if (!temSupabase) {
+        const locais = pegarLocais();
+        setDesafiosDb([...locais, ...desafiosFake]);
+        setCarregando(false);
         return;
       }
 
       try {
-        setLoading(true);
+        setCarregando(true);
         const { data, error } = await supabase
           .from('challenges')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
-        const local = getLocalChallenges();
+        const locais = pegarLocais();
         if (data && data.length > 0) {
-          setCommunityChallenges([...local, ...data]);
+          setDesafiosDb([...locais, ...data]);
         } else {
-          setCommunityChallenges([...local, ...mockCommunityChallenges]);
+          setDesafiosDb([...locais, ...desafiosFake]);
         }
       } catch (err) {
-        console.warn('Fetch failed, loading fallback challenges:', err);
-        const local = getLocalChallenges();
-        setCommunityChallenges([...local, ...mockCommunityChallenges]);
+        console.warn('Erro ao ler Supabase, usando mocks locais:', err);
+        const locais = pegarLocais();
+        setDesafiosDb([...locais, ...desafiosFake]);
       } finally {
-        setLoading(false);
+        setCarregando(false);
       }
     };
 
-    fetchChallenges();
+    carregarDesafios();
   }, []);
 
-  const getDifficultyBadge = (difficulty: string) => {
-    switch (difficulty) {
+  const renderDificuldade = (dificuldade: string) => {
+    switch (dificuldade) {
       case 'Easy':
         return <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-zinc-100 text-zinc-950">EASY</span>;
       case 'Medium':
@@ -136,7 +136,7 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
     <div className="flex-1 bg-black text-slate-100 p-8 overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-10">
         
-        {/* Header */}
+        {/* Header da Vitrine */}
         <div className="border-b border-zinc-900 pb-6">
           <h2 className="text-3xl font-extrabold tracking-tight text-white">Laboratórios de Hacking</h2>
           <p className="text-slate-400 mt-2">
@@ -152,39 +152,39 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
               Aulas Oficiais (Academia IoT)
             </h3>
             <span className="text-xs text-slate-500">
-              {completedLessonIds.length} / {officialLessons.length} Concluídas
+              {feitasOficiais.length} / {aulas.length} Concluídas
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {officialLessons.map((lesson) => {
-              const solved = completedLessonIds.includes(lesson.id);
+            {aulas.map((aula) => {
+              const resolvida = feitasOficiais.includes(aula.id);
               return (
                 <div
-                  key={lesson.id}
+                  key={aula.id}
                   className="card-black rounded-lg p-5 flex flex-col justify-between min-h-[180px] cursor-pointer"
-                  onClick={() => onSelectOfficial(lesson.id)}
+                  onClick={() => abrirOficial(aula.id)}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-zinc-400 tracking-wider">MÓDULO 0{lesson.id}</span>
-                      {solved ? (
+                      <span className="text-[10px] font-mono text-zinc-400 tracking-wider">MÓDULO 0{aula.id}</span>
+                      {resolvida ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-white">✓ SOLVED</span>
                       ) : (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-950 border border-zinc-900 text-zinc-500">PENDENTE</span>
                       )}
                     </div>
                     <h4 className="text-base font-bold text-white transition-colors line-clamp-1">
-                      {lesson.titulo}
+                      {aula.titulo}
                     </h4>
                     <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">
-                      {lesson.teoria}
+                      {aula.teoria}
                     </p>
                   </div>
 
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-900/50">
                     <span className="text-[10px] text-zinc-500">Oficial</span>
-                    <span className="text-xs text-white font-bold group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                    <span className="text-xs text-white font-bold flex items-center gap-1">
                       Iniciar Lab
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
@@ -204,10 +204,10 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
               <span className="w-1 h-5 bg-white rounded-sm"></span>
               Laboratórios da Comunidade (CTF)
             </h3>
-            {loading && <span className="text-xs text-zinc-500 animate-pulse">Sincronizando banco...</span>}
+            {carregando && <span className="text-xs text-zinc-500 animate-pulse">Sincronizando banco...</span>}
           </div>
 
-          {loading ? (
+          {carregando ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((n) => (
                 <div key={n} className="bg-zinc-950 border border-zinc-900 rounded-lg p-5 h-[180px] animate-pulse"></div>
@@ -215,35 +215,35 @@ export const ChallengeShowcase: React.FC<ChallengeShowcaseProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {communityChallenges.map((challenge) => {
-                const solved = completedCommunityIds.includes(challenge.id.toString());
+              {desafiosDb.map((desafio) => {
+                const resolvido = feitasComunidade.includes(desafio.id.toString());
                 return (
                   <div
-                    key={challenge.id}
+                    key={desafio.id}
                     className="card-black rounded-lg p-5 flex flex-col justify-between min-h-[180px] cursor-pointer"
-                    onClick={() => onSelectCommunity(challenge)}
+                    onClick={() => abrirComunidade(desafio)}
                   >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {getDifficultyBadge(challenge.difficulty)}
+                          {renderDificuldade(desafio.difficulty)}
                         </div>
-                        {solved ? (
+                        {resolvido ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-white">✓ CAPTURED</span>
                         ) : (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-950 border border-zinc-900 text-zinc-500">COMPETIR</span>
                         )}
                       </div>
                       <h4 className="text-base font-bold text-white line-clamp-1">
-                        {challenge.title}
+                        {desafio.title}
                       </h4>
                       <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">
-                        {challenge.description || 'Nenhuma descrição fornecida pelo criador.'}
+                        {desafio.description || 'Nenhuma descrição fornecida pelo criador.'}
                       </p>
                     </div>
 
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-900/50">
-                      <span className="text-[10px] text-zinc-500">ID: {challenge.wokwi_id.substring(0, 10)}</span>
+                      <span className="text-[10px] text-zinc-500">ID: {desafio.wokwi_id.substring(0, 10)}</span>
                       <span className="text-xs text-white font-bold flex items-center gap-1">
                         Competir
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

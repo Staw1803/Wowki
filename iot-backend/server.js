@@ -1,73 +1,72 @@
 const WebSocket = require('ws');
 const Docker = require('dockerode');
 
-// Connect to local Docker API
 const docker = new Docker();
 const wss = new WebSocket.Server({ port: 8080 });
 
-console.log('Servidor Orquestrador rodando na porta 8080...');
+console.log('Servidor rodando na porta 8080...');
 
-// Helper to demultiplex Docker stdout/stderr if Tty multiplexing is active
-function decodeDockerStream(chunk) {
+// Limpa o cabeçalho chato de 8 bytes que o docker enfia no meio do stdout/stderr
+function limparHeaderDocker(chunk) {
     if (!Buffer.isBuffer(chunk)) {
         return chunk.toString();
     }
-    // Check for standard 8-byte header: [1 or 2, 0, 0, 0, ...]
+    // Verifica o padrão de 8 bytes: [1 ou 2, 0, 0, 0, ...]
     if (chunk.length >= 8 && (chunk[0] === 1 || chunk[0] === 2) && chunk[1] === 0 && chunk[2] === 0 && chunk[3] === 0) {
-        let result = '';
+        let textoFinal = '';
         let offset = 0;
         while (offset + 8 <= chunk.length) {
-            const type = chunk[offset];
-            if (type !== 1 && type !== 2) {
-                result += chunk.slice(offset).toString();
+            const tipo = chunk[offset];
+            if (tipo !== 1 && tipo !== 2) {
+                textoFinal += chunk.slice(offset).toString();
                 break;
             }
-            const len = chunk.readUInt32BE(offset + 4);
-            const start = offset + 8;
-            const end = start + len;
-            if (end <= chunk.length) {
-                result += chunk.slice(start, end).toString();
+            const tamanho = chunk.readUInt32BE(offset + 4);
+            const inicio = offset + 8;
+            const fim = inicio + tamanho;
+            if (fim <= chunk.length) {
+                textoFinal += chunk.slice(inicio, fim).toString();
             } else {
-                result += chunk.slice(start).toString();
+                textoFinal += chunk.slice(inicio).toString();
             }
-            offset = end;
+            offset = fim;
         }
-        return result;
+        return textoFinal;
     }
     return chunk.toString();
 }
 
 // ----------------------------------------------------
-// ORCHESTRATOR & DOCKER CONSOLE CONNECTION (UBUNTU)
+// GERENCIADOR DE CONEXÃO WEBSOCKET ⟷ DOCKER (UBUNTU)
 // ----------------------------------------------------
 
 wss.on('connection', async (ws) => {
-    console.log('[+] Novo aluno conectado. Provisionando laboratório...');
+    console.log('[+] Novo aluno conectado. Iniciando setup do lab...');
     ws.send('\r\n[!] Iniciando ambiente isolado (Container Ubuntu Linux)...\r\n');
 
-    let dockerReady = false;
+    let dockerAtivo = false;
     try {
         await docker.ping();
-        dockerReady = true;
-    } catch (e) {
-        console.log('[!] Docker Desktop não detectado. Iniciando em MODO FALLBACK.');
+        dockerAtivo = true;
+    } catch (err) {
+        console.log('[!] Docker não rodando ou indisponível. Entrando em modo fallback.');
         ws.send('\r\n[!] AVISO: Docker Desktop não localizado. Iniciando shell local...\r\n');
     }
 
-    if (!dockerReady) {
-        // Fallback Mock Shell simulating Ubuntu and APT package manager
+    // Se der ruim e não tiver Docker no pc dele, inicia o shell mockado
+    if (!dockerAtivo) {
         ws.send('\r\nWelcome to IoT-OS (Ubuntu 22.04.3 LTS) Mock Shell! Type "help" to see tools.\r\n[!] O ambiente está isolado. O ataque de injeção IoT deve ser direcionado ao broker MQTT público em: broker.hivemq.com\r\nroot@iot-academy:~# ');
-        let mockBuffer = '';
-        let installedPackages = new Set(['curl', 'strings']);
+        let bufferTerminal = '';
+        let pacotesInstalados = new Set(['curl', 'strings']);
 
         ws.on('message', async (msg) => {
             const char = msg.toString();
 
             if (char === '\r') {
-                const cmdLine = mockBuffer.trim();
+                const cmdLine = bufferTerminal.trim();
                 const args = cmdLine.split(/\s+/);
                 const cmd = args[0].toLowerCase();
-                mockBuffer = '';
+                bufferTerminal = '';
                 ws.send('\r\n');
 
                 if (cmd === 'help') {
@@ -79,30 +78,30 @@ wss.on('connection', async (ws) => {
                 } else if (cmd === 'ls') {
                     ws.send('bin/   boot/  dev/   etc/   home/  lib/   mnt/   opt/   root/  run/   sbin/  srv/   sys/   tmp/   usr/   var/\r\n');
                 } else if (cmd === 'apt-get' || cmd === 'apt') {
-                    const action = args[1];
-                    const pkg = args[2];
+                    const acao = args[1];
+                    const pacote = args[2];
 
-                    if (action === 'install') {
-                        if (!pkg) {
+                    if (acao === 'install') {
+                        if (!pacote) {
                             ws.send('E: Especifique o pacote para instalar (ex: apt-get install nmap)\r\n');
                         } else {
-                            const cleanPkg = pkg.toLowerCase();
+                            const pName = pacote.toLowerCase();
                             ws.send(`Reading package lists... Done\r\n`);
                             ws.send(`Building dependency tree... Done\r\n`);
                             ws.send(`Reading state information... Done\r\n`);
-                            ws.send(`The following NEW packages will be installed:\r\n  ${cleanPkg}\r\n`);
+                            ws.send(`The following NEW packages will be installed:\r\n  ${pName}\r\n`);
                             ws.send(`0 upgraded, 1 newly installed, 0 to remove and 42 not upgraded.\r\n`);
                             ws.send(`Need to get 143 kB of archives.\r\n`);
                             ws.send(`After this operation, 512 kB of additional disk space will be used.\r\n`);
-                            ws.send(`Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 ${cleanPkg} [143 kB]\r\n`);
-                            ws.send(`Selecting previously unselected package ${cleanPkg}.\r\n`);
+                            ws.send(`Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 ${pName} [143 kB]\r\n`);
+                            ws.send(`Selecting previously unselected package ${pName}.\r\n`);
                             ws.send(`(Reading database ... 14842 files and directories currently installed.)\r\n`);
-                            ws.send(`Preparing to unpack .../${cleanPkg}_amd64.deb ...\r\n`);
-                            ws.send(`Unpacking ${cleanPkg} ...\r\n`);
-                            ws.send(`Setting up ${cleanPkg} ...\r\n`);
-                            installedPackages.add(cleanPkg);
+                            ws.send(`Preparing to unpack .../${pName}_amd64.deb ...\r\n`);
+                            ws.send(`Unpacking ${pName} ...\r\n`);
+                            ws.send(`Setting up ${pName} ...\r\n`);
+                            pacotesInstalados.add(pName);
                         }
-                    } else if (action === 'update') {
+                    } else if (acao === 'update') {
                         ws.send('Get:1 http://archive.ubuntu.com/ubuntu jammy InRelease [270 kB]\r\n');
                         ws.send('Get:2 http://security.ubuntu.com/ubuntu jammy-security InRelease [110 kB]\r\n');
                         ws.send('Fetched 380 kB in 1s (245 kB/s)\r\n');
@@ -111,7 +110,7 @@ wss.on('connection', async (ws) => {
                         ws.send('APT Package Manager. Uso: apt-get install <pacote> ou apt-get update\r\n');
                     }
                 } else if (cmd === 'nmap') {
-                    if (installedPackages.has('nmap')) {
+                    if (pacotesInstalados.has('nmap')) {
                         const target = args[1];
                         if (!target) {
                             ws.send('nmap: Especifique o alvo (ex: nmap broker.hivemq.com)\r\n');
@@ -128,11 +127,11 @@ wss.on('connection', async (ws) => {
                         ws.send('bash: nmap: command not found (Instale usando: apt-get install nmap)\r\n');
                     }
                 } else if (cmd === 'mosquitto_sub' || cmd === 'mosquitto-clients') {
-                    if (installedPackages.has('mosquitto-clients')) {
-                        const hostIdx = args.indexOf('-h');
-                        const topicIdx = args.indexOf('-t');
-                        const host = hostIdx !== -1 ? args[hostIdx + 1] : '';
-                        const topic = topicIdx !== -1 ? args[topicIdx + 1] : '';
+                    if (pacotesInstalados.has('mosquitto-clients')) {
+                        const idxHost = args.indexOf('-h');
+                        const idxTopic = args.indexOf('-t');
+                        const host = idxHost !== -1 ? args[idxHost + 1] : '';
+                        const topic = idxTopic !== -1 ? args[idxTopic + 1] : '';
 
                         if (!host || !topic) {
                             ws.send('Uso: mosquitto_sub -h <broker> -t <topico>\r\n');
@@ -145,13 +144,13 @@ wss.on('connection', async (ws) => {
                         ws.send('bash: mosquitto_sub: command not found (Instale usando: apt-get install mosquitto-clients)\r\n');
                     }
                 } else if (cmd === 'mosquitto_pub') {
-                    if (installedPackages.has('mosquitto-clients')) {
-                        const hostIdx = args.indexOf('-h');
-                        const topicIdx = args.indexOf('-t');
-                        const msgIdx = args.indexOf('-m');
-                        const host = hostIdx !== -1 ? args[hostIdx + 1] : '';
-                        const topic = topicIdx !== -1 ? args[topicIdx + 1] : '';
-                        const payload = msgIdx !== -1 ? args[msgIdx + 1] : '';
+                    if (pacotesInstalados.has('mosquitto-clients')) {
+                        const idxHost = args.indexOf('-h');
+                        const idxTopic = args.indexOf('-t');
+                        const idxMsg = args.indexOf('-m');
+                        const host = idxHost !== -1 ? args[idxHost + 1] : '';
+                        const topic = idxTopic !== -1 ? args[idxTopic + 1] : '';
+                        const payload = idxMsg !== -1 ? args[idxMsg + 1] : '';
 
                         if (!host || !topic || !payload) {
                             ws.send('Uso: mosquitto_pub -h <broker> -t <topico> -m "<mensagem>"\r\n');
@@ -170,12 +169,12 @@ wss.on('connection', async (ws) => {
                 }
                 ws.send('root@iot-academy:~# ');
             } else if (char.charCodeAt(0) === 127 || char.charCodeAt(0) === 8) {
-                if (mockBuffer.length > 0) {
-                    mockBuffer = mockBuffer.slice(0, -1);
+                if (bufferTerminal.length > 0) {
+                    bufferTerminal = bufferTerminal.slice(0, -1);
                     ws.send('\b \b');
                 }
             } else {
-                mockBuffer += char;
+                bufferTerminal += char;
                 ws.send(char);
             }
         });
@@ -183,13 +182,13 @@ wss.on('connection', async (ws) => {
     }
 
     try {
-        // Check if the ubuntu:latest image is cached locally, if not, pull it
-        const images = await docker.listImages();
-        const hasUbuntu = images.some(img => img.RepoTags && img.RepoTags.includes('ubuntu:latest'));
+        // Puxa a imagem do ubuntu da internet se não tiver ela baixada
+        const listaImagens = await docker.listImages();
+        const temUbuntu = listaImagens.some(img => img.RepoTags && img.RepoTags.includes('ubuntu:latest'));
 
-        if (!hasUbuntu) {
+        if (!temUbuntu) {
             ws.send('[!] Imagem Ubuntu não localizada no disco local.\r\n');
-            ws.send('[!] Baixando imagem base ubuntu:latest do Docker Hub... (Isso pode levar alguns segundos na primeira vez)\r\n');
+            ws.send('[!] Baixando imagem base ubuntu:latest do Docker Hub... (Aguarde alguns instantes)\r\n');
             console.log('[*] Baixando imagem ubuntu:latest...');
             
             await new Promise((resolve, reject) => {
@@ -201,11 +200,11 @@ wss.on('connection', async (ws) => {
                     });
                 });
             });
-            console.log('[*] Imagem ubuntu:latest baixada e registrada.');
+            console.log('[*] Imagem ubuntu:latest baixada.');
             ws.send('[✓] Download concluído. Inicializando contêiner...\r\n');
         }
 
-        // Create an interactive Ubuntu container running foreground apt installer first, then swapping to bash
+        // Cria o container Ubuntu e injeta o comando do instalador com um shell bash depois
         const container = await docker.createContainer({
             Image: 'ubuntu:latest',
             Cmd: [
@@ -229,8 +228,8 @@ wss.on('connection', async (ws) => {
 
         await container.start();
 
-        // Start shell hijack connection immediately
-        const exec = await container.exec({
+        // Conecta no fluxo de entrada/saida
+        const execInstancia = await container.exec({
             Cmd: ['/bin/bash'],
             AttachStdin: true,
             AttachStdout: true,
@@ -239,26 +238,26 @@ wss.on('connection', async (ws) => {
             Stdin: true
         });
 
-        const stream = await exec.start({ stdin: true, hijack: true, Tty: true });
+        const fluxo = await execInstancia.start({ stdin: true, hijack: true, Tty: true });
 
-        // Pipe WebSocket input to Container Exec Stdin
+        // Envia o que o aluno digita pro container
         ws.on('message', (msg) => {
-            if (stream && stream.writable) {
-                stream.write(msg);
+            if (fluxo && fluxo.writable) {
+                fluxo.write(msg);
             }
         });
 
-        // Pipe Container Exec Stdout/Stderr back to WebSocket, passing through our demuxer
-        stream.on('data', (chunk) => {
-            const cleanText = decodeDockerStream(chunk);
+        // Retorna o output limpo pro terminal web
+        fluxo.on('data', (chunk) => {
+            const cleanText = limparHeaderDocker(chunk);
             ws.send(cleanText);
         });
 
-        // Clean up on WebSocket disconnection
+        // Limpa tudo e mata o container se a conexao cair
         ws.on('close', async () => {
-            console.log('[-] Aluno desconectado. Encerrando e destruindo container...');
+            console.log('[-] Aluno desconectado. Limpando container...');
             try {
-                stream.destroy();
+                fluxo.destroy();
                 await container.stop();
                 await container.remove();
             } catch (err) {
@@ -267,7 +266,7 @@ wss.on('connection', async (ws) => {
         });
 
     } catch (err) {
-        console.error('[Erro Fatal] Falha na infraestrutura:', err);
+        console.error('[Erro Fatal] Falha de infra:', err);
         ws.send(`\r\n[Erro Fatal] Falha na infraestrutura: ${err.message}\r\n`);
     }
 });
